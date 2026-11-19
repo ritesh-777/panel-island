@@ -235,6 +235,9 @@ details.
 
 ## Acknowledgments
 
-- [Isle](https://github.com/zickrian/isle) by zickrian — the glass in `glass/` is copied from Isle 1.7.3 (GPL-3.0-or-later),
-  the top bar's colours follow Isle's stylesheet, and the capsules' measurements and look follow Isle's island.
+- [Isle](https://github.com/zickrian/isle) by zickrian (GPL-3.0-or-later):
+  - the glass in `glass/` is copied from Isle 1.7.3;
+  - the shader in `shape.js` is built from Isle's glass shader, its tone, lens and rim kept as Isle's;
+  - the top bar's colour rules in `stylesheet.css` come from Isle's stylesheet;
+  - the capsules' measurements and look follow Isle's island.
 - GNOME Shell Extensions framework

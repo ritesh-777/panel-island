@@ -1,3 +1,7 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+   Copyright (C) 2026 Ritesh Seth
+   Portions copyright (C) 2026 zickrian: the top bar's colour rules, from Isle's stylesheet */
+
 /* No hover or pressed shading on the buttons in the capsules (the middle one's only while it is shown) (Settings → Flat buttons): the glass is the feedback.
    Two ids, so these win over GNOME's own #panel .panel-button:hover (and its :overview one). */
 #panel.panel-island-flat-left #panelLeft .panel-button,
