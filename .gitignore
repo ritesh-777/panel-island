@@ -1,0 +1,14 @@
+# Development artifacts
+backups/
+backup/
+*.log
+.DS_Store
+Thumbs.db
+
+# Built on install (install.sh)
+schemas/gschemas.compiled
+
+# Agent files stay local
+AGENTS.md
+CLAUDE.md
+CODEX*.md

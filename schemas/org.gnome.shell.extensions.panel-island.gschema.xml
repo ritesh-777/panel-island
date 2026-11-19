@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.panel-island" path="/org/gnome/shell/extensions/panel-island/">
+    <key name="left-capsule" type="b">
+      <default>true</default>
+      <summary>Capsule round the bar's left items</summary>
+    </key>
+    <key name="right-capsule" type="b">
+      <default>true</default>
+      <summary>Capsule round the bar's right items</summary>
+    </key>
+    <key name="centre-capsule" type="s">
+      <choices>
+        <choice value="auto"/>
+        <choice value="on"/>
+        <choice value="off"/>
+      </choices>
+      <default>'auto'</default>
+      <summary>Capsule round the bar's middle items (the clock)</summary>
+      <description>auto: only while Isle is not on, its island holding the clock otherwise.</description>
+    </key>
+    <key name="top-bar" type="s">
+      <choices>
+        <choice value="isle"/>
+        <choice value="custom"/>
+        <choice value="theme"/>
+      </choices>
+      <default>'isle'</default>
+      <summary>The top bar's colour while Isle is off</summary>
+      <description>isle: as Isle's own Settings colour it (without Isle, as top-bar-opacity says). custom: as top-bar-opacity says. theme: the theme's own.</description>
+    </key>
+    <key name="top-bar-opacity" type="i">
+      <range min="0" max="100"/>
+      <default>0</default>
+      <summary>Top bar opacity</summary>
+      <description>How black the top bar is while Isle is off, in %: 0 see-through, 100 black.</description>
+    </key>
+    <key name="shape" type="s">
+      <choices>
+        <choice value="isle"/>
+        <choice value="pill"/>
+        <choice value="notch"/>
+      </choices>
+      <default>'isle'</default>
+      <summary>The capsules' shape</summary>
+      <description>"isle": as Isle's island (its own Shape setting). "pill": floating in the bar, round all over. "notch": joined to the top of the screen, flaring into the bar.</description>
+    </key>
+    <key name="theme" type="s">
+      <choices>
+        <choice value="isle"/>
+        <choice value="glass"/>
+        <choice value="black"/>
+      </choices>
+      <default>'isle'</default>
+      <summary>The capsules' look</summary>
+      <description>"isle": as Isle's island (its own Island setting). "glass": blurred glass with Isle's glass tint. "black": solid black.</description>
+    </key>
+    <key name="reach-edges" type="b">
+      <default>false</default>
+      <summary>Capsules reach the screen's edges</summary>
+      <description>The left capsule runs to the screen's left edge and the right one to its right edge, menus opening joined to it.</description>
+    </key>
+    <key name="edge-radius" type="i">
+      <range min="-48" max="48"/>
+      <default>0</default>
+      <summary>The bottom corner at the screen's edge, in px</summary>
+      <description>With reach-edges: positive rounds it in, 0 leaves it square, negative flares it out concave down the screen's side.</description>
+    </key>
+    <key name="edge-corners" type="s">
+      <choices>
+        <choice value="top"/>
+        <choice value="bottom"/>
+        <choice value="both"/>
+      </choices>
+      <default>'both'</default>
+      <summary>Old: which corners at the screen's edge edge-radius shapes</summary>
+      <description>Replaced by top-same-as-bottom and the top-… keys; carried over once (migrate.js).</description>
+    </key>
+    <key name="match-windows" type="b">
+      <default>false</default>
+      <summary>Match window corners</summary>
+      <description>With reach-edges: a closed capsule's bottom corner at the screen's edge is sized from the rounded corner of a window right below the bar, edge-radius's sign picking the way: positive as round as it, negative flared, following it at an even gap, 0 square.</description>
+    </key>
+    <key name="window-radius-auto" type="b">
+      <default>true</default>
+      <summary>Window corner radius from Rounded Window Corners</summary>
+      <description>Its own corner radius if it is installed, else libadwaita's (15 px).</description>
+    </key>
+    <key name="window-radius" type="i">
+      <range min="0" max="48"/>
+      <default>15</default>
+      <summary>Window corner radius, in px (with window-radius-auto off)</summary>
+    </key>
+    <key name="edge-light" type="s">
+      <choices>
+        <choice value="even"/>
+        <choice value="directional"/>
+      </choices>
+      <default>'even'</default>
+      <summary>How the glass's edge catches the light</summary>
+      <description>"even": the same all round, straight edges and corners alike. "directional": as Isle's, lit from the top left, so edges facing down and left (a corner turning that way) are hardly lit.</description>
+    </key>
+    <key name="top-same-as-bottom" type="b">
+      <default>true</default>
+      <summary>The top corner at the screen's edge as the bottom one</summary>
+      <description>On: the top corner takes the bottom's radius and window matching. Off: the top-… keys below.</description>
+    </key>
+    <key name="top-edge-radius" type="i">
+      <range min="-48" max="48"/>
+      <default>0</default>
+      <summary>The top corner at the screen's edge, in px</summary>
+      <description>With top-same-as-bottom off: positive rounds it in, 0 leaves it square, negative flares it out concave up the screen's side (into the room above).</description>
+    </key>
+    <key name="top-match-windows" type="b">
+      <default>false</default>
+      <summary>The top corner rounded as the windows' corners</summary>
+      <description>With top-same-as-bottom off: the top corner sized as a window's corner, top-edge-radius's sign picking the way: positive round, negative flared, 0 square.</description>
+    </key>
+    <key name="top-window-radius-auto" type="b">
+      <default>true</default>
+      <summary>For the top corner, the window corner radius from Rounded Window Corners</summary>
+    </key>
+    <key name="top-window-radius" type="i">
+      <range min="0" max="48"/>
+      <default>15</default>
+      <summary>For the top corner, the window corner radius, in px (with top-window-radius-auto off)</summary>
+    </key>
+    <key name="patch-isle-overview" type="b">
+      <default>false</default>
+      <summary>Keep Isle's glass in the overview</summary>
+      <description>Isle's island hides its blur in the overview, almost clear there. On: Isle's glass is changed as it runs (its files are not) to stay, blurring the wallpaper. Off, or if Isle has changed so this cannot apply, Isle is as it is.</description>
+    </key>
+    <key name="patch-isle-corners" type="b">
+      <default>false</default>
+      <summary>Smooth Isle's notch corners</summary>
+      <description>Isle's glass takes its rim, glow and lens from its body alone, so a notch's shoulders look drawn on apart. On: Isle's glass is cut with this extension's mask as it runs (its files are not changed), its whole outline taken. Off, or if Isle has changed so this cannot apply, Isle is as it is.</description>
+    </key>
+    <key name="edge-blur" type="s">
+      <choices>
+        <choice value="fade"/>
+        <choice value="solid"/>
+      </choices>
+      <default>'fade'</default>
+      <summary>The glass at the screen's edge</summary>
+      <description>"fade": as Isle's, the blur thinning into clear glass towards the screen's edge. "solid": as solid up to the edge as anywhere.</description>
+    </key>
+    <key name="isle-weather" type="b">
+      <default>false</default>
+      <summary>Weather on Isle's Calendar page</summary>
+      <description>A chip beside the day with its sky and temperature, and, clicked, the day's weather in full in place of the events: Isle's own feature/calendar-weather branch, added to Isle as it runs (its files are not changed). For GNOME Weather's place; needs GNOME Weather. Off, or if Isle has changed so this cannot apply, Isle is as it is.</description>
+    </key>
+    <key name="isle-edge-blur" type="s">
+      <choices>
+        <choice value="fade"/>
+        <choice value="solid"/>
+      </choices>
+      <default>'fade'</default>
+      <summary>Isle's glass at the screen's edge</summary>
+      <description>With patch-isle-corners on (Isle's glass then cut by this extension's mask): "fade" as Isle draws it, its blur thinning into clear glass towards the screen's edge; "solid" as blurred up to the edge as anywhere.</description>
+    </key>
+    <key name="patch-isle-lighter" type="b">
+      <default>false</default>
+      <summary>Lighter blur updates for Isle</summary>
+      <description>Isle's glass copies every window its blur reaches, a margin below the bar too, so a window there (a video in it) has it blurred again every frame. On: only windows under the glass itself are copied, as for this extension's own glass. Changed as Isle runs, its files are not; off, or if Isle has changed so this cannot apply, Isle is as it is.</description>
+    </key>
+    <key name="tint-like-isle" type="b">
+      <default>true</default>
+      <summary>Glass as strong as Isle's</summary>
+      <description>On: the glass tint follows Isle's own Glass tint setting. Off: glass-tint below.</description>
+    </key>
+    <key name="glass-tint" type="i">
+      <range min="0" max="100"/>
+      <default>0</default>
+      <summary>Glass strength</summary>
+      <description>With the Glass look and tint-like-isle off: from 0 (clear, lightly blurred) to 100 (dark frosted glass, blurred most), as Isle's Glass tint.</description>
+    </key>
+    <key name="open-on" type="s">
+      <choices>
+        <choice value="isle"/>
+        <choice value="hover"/>
+        <choice value="click"/>
+      </choices>
+      <default>'isle'</default>
+      <summary>How side menus open</summary>
+      <description>"isle": as Isle's island opens (its own setting and delay). "hover": when the pointer rests on a button. "click": only when clicked.</description>
+    </key>
+    <key name="hover-delay" type="i">
+      <range min="60" max="1000"/>
+      <default>120</default>
+      <summary>How long the pointer rests before a menu opens, in milliseconds (with "hover")</summary>
+    </key>
+    <key name="close-delay" type="i">
+      <range min="100" max="2000"/>
+      <default>300</default>
+      <summary>How long after the pointer leaves a menu opened on hover it closes, in milliseconds</summary>
+    </key>
+    <key name="animation-speed" type="d">
+      <range min="0.5" max="2.0"/>
+      <default>1.0</default>
+      <summary>How fast the glass grows and shrinks (1 is normal, 2 twice as fast)</summary>
+    </key>
+    <key name="bounce" type="b">
+      <default>true</default>
+      <summary>A little overshoot as a menu opens</summary>
+    </key>
+    <key name="centre-menus" type="b">
+      <default>true</default>
+      <summary>Centre a menu in its glass</summary>
+    </key>
+    <key name="flat-buttons" type="b">
+      <default>true</default>
+      <summary>No hover or pressed shading on the side buttons</summary>
+    </key>
+  </schema>
+</schemalist>

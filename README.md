@@ -1,0 +1,240 @@
+# Panel Island
+
+[![GNOME Shell](https://img.shields.io/badge/GNOME%20Shell-51-blue.svg)](https://gnome.org)
+[![License](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE)
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?style=flat&logo=github-sponsors)](https://github.com/sponsors/ritesh-777)
+
+Glass islands for the GNOME top bar.
+
+Panel Island puts a glass capsule round the left, middle and right items of the top bar, and opens their menus as
+glass that grows out of the capsule, the way a dynamic island opens. Quick Settings, the calendar, tray menus and
+the app menu all drop out of their island instead of appearing as separate popups.
+
+It is made to sit beside [Isle](https://github.com/zickrian/isle), and works just as well without it. With Isle, the
+side capsules share Isle's glass and follow its look, and Isle's island keeps the clock in the middle. Without Isle,
+Panel Island draws the whole bar itself.
+
+## Quick Links
+
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Settings](#settings)
+- [Working With Isle](#working-with-isle)
+- [How It Works](#how-it-works)
+- [Troubleshooting](#troubleshooting)
+- [Acknowledgments](#acknowledgments)
+
+## What You Get
+
+- **Three capsules**: round the bar's left, middle and right items, each on or off.
+- **Menus that grow out of their capsule** as one piece of glass, on hover or on click, with a little bounce.
+- **Pill or notch**: floating in the bar, or joined to the top of the screen, or the same shape as Isle's island.
+- **Glass or black**, with glass strength, edge light and edge blur of its own.
+- **Edge to edge**: the side capsules can run to the screen's sides, their corners rounded, square or flaring down
+  the screen's side, optionally matching your windows' corners.
+- **Flat buttons**: no hover shading on the buttons in a capsule; the glass is the feedback.
+- **The top bar's colour while Isle is off**, from see-through to black.
+- **Optional additions to Isle**, made while it runs and never to its files.
+
+## Requirements
+
+- **GNOME Shell 51**
+
+Optional:
+
+- [Isle](https://github.com/zickrian/isle): the capsules share its glass and look, and its island holds the clock.
+- [Rounded Window Corners](https://github.com/ztrahmet/rounded-window-corners): its corner radius is used when the
+  capsules match your windows' corners. Without it, libadwaita's 15 px is used.
+
+## Installation
+
+### One-Line Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ritesh-777/panel-island/main/install.sh | bash
+```
+
+Then log out and back in, and enable the extension:
+
+```bash
+gnome-extensions enable panel-island@ritesh
+```
+
+Running the same command again updates it to the latest version.
+
+### Local Install
+
+```bash
+git clone https://github.com/ritesh-777/panel-island.git
+cd panel-island
+./install.sh
+```
+
+Log out and back in, then enable it from the Extensions app.
+
+### Uninstalling
+
+```bash
+gnome-extensions disable panel-island@ritesh
+rm -rf ~/.local/share/gnome-shell/extensions/panel-island@ritesh
+```
+
+## Settings
+
+Open the Extensions app, find **Panel Island**, and click the settings button. Settings take effect at once.
+
+### Capsules
+
+- **Shape** — Pill (floating in the bar), Notch (joined to the top of the screen), or Like Isle.
+- **Look** — Glass, Black, or Like Isle.
+- **Glass as strong as Isle's** — Follows Isle's Glass tint. Off, **Glass strength** sets it here, from clear to
+  dark.
+- **Edge light** — Even all round the edge, or Directional, lit from the top left as Isle's.
+- **Edge blur** — Fades into clear glass towards the screen's edge, or stays solid to it.
+- **Left capsule / Right capsule** — Each side on or off. A side turned off looks and opens as GNOME's.
+- **Middle capsule** — Automatic (only while Isle is off), On or Off.
+- **Flat buttons** — No shading on a button under the pointer or pressed.
+
+### Top Bar
+
+The bar's colour while Isle is off. With Isle on, Isle colours the bar itself.
+
+- **Colour** — Like Isle (Isle's own Top bar settings), Coloured (see-through to black, with white text), or the
+  theme's own.
+- **Opacity** — 0 is see-through, 100 is black.
+
+### Screen Edges
+
+- **Reach screen edges** — The side capsules run to the screen's sides.
+- **Bottom corner / Top corner** — The corner at the screen's side, each set apart or the top the same as the
+  bottom:
+  - **Corner radius** — Positive rounds it in, 0 leaves it square, negative flares it out along the screen's side
+    (−48 to 48 px).
+  - **Match window corners** — Sized from your windows' corners: round as they are, or flared to follow a window
+    below the bar at an even gap.
+  - **Window radius from Rounded Window Corners**, or a **Window corner radius** set by hand.
+
+### Opening Menus
+
+- **Open menus** — On hover, on click, or Like Isle.
+- **Hover delay** — How long the pointer rests before a menu opens.
+- **Close delay** — How long after the pointer leaves a menu opened on hover it closes.
+
+### Motion
+
+- **Animation speed** — 1 is normal, 2 twice as fast, 0.5 half as fast.
+- **Bounce** — A little overshoot as a menu opens.
+- **Centre menus** — A menu moves to the middle of its glass instead of sitting under its button.
+
+### Isle
+
+Shown only with Isle installed. Each one changes Isle as it runs and never its files.
+
+- **Keep Isle's glass in the overview** — Isle's island stays blurred in the overview and while switching
+  workspaces, blurring what is really behind it.
+- **Lighter blur updates** — A window just below the bar, a video playing in it, no longer has Isle's glass blurred
+  again every frame.
+- **Weather on Isle's Calendar page** — Today's weather beside the date, and the day's weather in full on a click,
+  for the place set in GNOME Weather.
+- **Smooth Isle's notch corners** — Isle's notch drawn with Panel Island's own corners, without the seam where its
+  shoulders meet.
+- **Isle's edge blur** — With smooth corners on: fades into clear glass at the screen's edge, as Isle draws it, or
+  solid to the edge.
+
+## Working With Isle
+
+Panel Island never changes Isle's files, and Isle works the same with it or without it.
+
+- **With Isle installed**, Panel Island loads Isle's own glass code, so both look the same and follow the same
+  settings.
+- **Without Isle**, it uses its own copy of Isle's glass (in `glass/`), so it looks the same.
+- **Isle turned on or off** while the shell runs: the middle capsule and the top bar's colour hand over at once,
+  with no need to log out.
+- **The additions to Isle** are put on only while Isle runs, each can be turned off, and each first checks that Isle
+  still has what it changes. If an Isle update changes it, that addition is skipped, a line is written to the log,
+  and Isle works as usual.
+
+## How It Works
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                         GNOME Shell                          │
+│                                                              │
+│   Top bar: left box        middle box        right box       │
+│        │                       │                  │          │
+│        ▼                       ▼                  ▼          │
+│   ┌─────────┐            ┌──────────┐        ┌─────────┐     │
+│   │ Capsule │            │ Capsule  │        │ Capsule │     │
+│   └────┬────┘            └────┬─────┘        └────┬────┘     │
+│        └──────────────────────┼───────────────────┘          │
+│                               ▼                              │
+│                   ┌───────────────────────┐                  │
+│                   │ Glass: Isle's, or its │                  │
+│                   │ own copy in glass/,   │                  │
+│                   │ cut to shape corner   │                  │
+│                   │ by corner             │                  │
+│                   └───────────┬───────────┘                  │
+│                               ▼                              │
+│       A menu opens: one glass shape grows from its capsule   │
+│       down round the menu, and back as it closes             │
+└──────────────────────────────────────────────────────────────┘
+```
+
+- **Each capsule** follows the items in its box, and is drawn once and kept: the bar redrawing round it (a clock
+  ticking, Isle's island animating) paints the kept picture again instead of blurring it again.
+- **The glass** blurs a copy of the wallpaper and the windows under it, and cuts it to the capsule's shape with a
+  shader of Panel Island's own, which shapes each corner apart (round, square, or flaring along an edge).
+- **In the overview and while switching workspaces**, the glass blurs a copy of GNOME's own scene, so it shows what
+  is really behind it.
+- **A menu** is given no background of its own while open; the glass under it is its background.
+
+## Troubleshooting
+
+### The extension does not appear
+
+1. Check the folder is at `~/.local/share/gnome-shell/extensions/panel-island@ritesh/`
+2. Recompile the schema:
+   `glib-compile-schemas ~/.local/share/gnome-shell/extensions/panel-island@ritesh/schemas/`
+3. Log out and back in
+
+### New settings do not show up
+
+Close the Extensions app and open it again: it keeps the old settings window until it is restarted.
+
+### Something looks wrong
+
+Check the log for Panel Island's lines:
+
+```bash
+journalctl -f -o cat /usr/bin/gnome-shell | grep panel-island
+```
+
+A line saying Isle's glass has changed means an Isle update changed something an addition relies on: that addition
+is skipped and Isle works as usual.
+
+## Support
+
+If Panel Island has made your desktop nicer, consider supporting its development:
+
+- [Sponsor on GitHub Sponsors](https://github.com/sponsors/ritesh-777)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 or later — see the [LICENSE](LICENSE) file for
+details.
+
+## Acknowledgments
+
+- [Isle](https://github.com/zickrian/isle) by zickrian — the glass in `glass/` is copied from Isle 1.7.3 (GPL-3.0-or-later),
+  the top bar's colours follow Isle's stylesheet, and the capsules' measurements and look follow Isle's island.
+- GNOME Shell Extensions framework

@@ -1,0 +1,183 @@
+/* No hover or pressed shading on the buttons in the capsules (the middle one's only while it is shown) (Settings → Flat buttons): the glass is the feedback.
+   Two ids, so these win over GNOME's own #panel .panel-button:hover (and its :overview one). */
+#panel.panel-island-flat-left #panelLeft .panel-button,
+#panel.panel-island-flat-left #panelLeft .panel-button:hover,
+#panel.panel-island-flat-left #panelLeft .panel-button:focus,
+#panel.panel-island-flat-left #panelLeft .panel-button:active,
+#panel.panel-island-flat-left #panelLeft .panel-button:checked,
+#panel.panel-island-flat-left #panelLeft .panel-button:active:hover,
+#panel.panel-island-flat-left #panelLeft .panel-button:checked:hover,
+#panel.panel-island-flat-right #panelRight .panel-button,
+#panel.panel-island-flat-right #panelRight .panel-button:hover,
+#panel.panel-island-flat-right #panelRight .panel-button:focus,
+#panel.panel-island-flat-right #panelRight .panel-button:active,
+#panel.panel-island-flat-right #panelRight .panel-button:checked,
+#panel.panel-island-flat-right #panelRight .panel-button:active:hover,
+#panel.panel-island-flat-right #panelRight .panel-button:checked:hover,
+#panel.panel-island-flat-left:overview #panelLeft .panel-button:hover,
+#panel.panel-island-flat-left:overview #panelLeft .panel-button:active,
+#panel.panel-island-flat-left:overview #panelLeft .panel-button:checked,
+#panel.panel-island-flat-right:overview #panelRight .panel-button:hover,
+#panel.panel-island-flat-right:overview #panelRight .panel-button:active,
+#panel.panel-island-flat-centre #panelCenter .panel-button,
+#panel.panel-island-flat-centre #panelCenter .panel-button:hover,
+#panel.panel-island-flat-centre #panelCenter .panel-button:focus,
+#panel.panel-island-flat-centre #panelCenter .panel-button:active,
+#panel.panel-island-flat-centre #panelCenter .panel-button:checked,
+#panel.panel-island-flat-centre #panelCenter .panel-button:active:hover,
+#panel.panel-island-flat-centre #panelCenter .panel-button:checked:hover,
+#panel.panel-island-flat-centre:overview #panelCenter .panel-button:hover,
+#panel.panel-island-flat-centre:overview #panelCenter .panel-button:active,
+#panel.panel-island-flat-centre:overview #panelCenter .panel-button:checked,
+#panel.panel-island-flat-right:overview #panelRight .panel-button:checked {
+    box-shadow: none;
+    background-color: transparent;
+}
+
+/* The clock's shading is on its label, not its button (GNOME's and Yaru's .clock-display .clock): flat too, on
+   whichever side it sits (Top Bar Organizer may move it). */
+#panel.panel-island-flat-left #panelLeft .panel-button.clock-display .clock,
+#panel.panel-island-flat-left #panelLeft .panel-button.clock-display:hover .clock,
+#panel.panel-island-flat-left #panelLeft .panel-button.clock-display:focus .clock,
+#panel.panel-island-flat-left #panelLeft .panel-button.clock-display:active .clock,
+#panel.panel-island-flat-left #panelLeft .panel-button.clock-display:checked .clock,
+#panel.panel-island-flat-left #panelLeft .panel-button.clock-display:active:hover .clock,
+#panel.panel-island-flat-left #panelLeft .panel-button.clock-display:checked:hover .clock,
+#panel.panel-island-flat-left:overview #panelLeft .panel-button.clock-display .clock,
+#panel.panel-island-flat-left:overview #panelLeft .panel-button.clock-display:hover .clock,
+#panel.panel-island-flat-left:overview #panelLeft .panel-button.clock-display:focus .clock,
+#panel.panel-island-flat-left:overview #panelLeft .panel-button.clock-display:active .clock,
+#panel.panel-island-flat-left:overview #panelLeft .panel-button.clock-display:checked .clock,
+#panel.panel-island-flat-left:overview #panelLeft .panel-button.clock-display:active:hover .clock,
+#panel.panel-island-flat-left:overview #panelLeft .panel-button.clock-display:checked:hover .clock,
+#panel.panel-island-flat-right #panelRight .panel-button.clock-display .clock,
+#panel.panel-island-flat-right #panelRight .panel-button.clock-display:hover .clock,
+#panel.panel-island-flat-right #panelRight .panel-button.clock-display:focus .clock,
+#panel.panel-island-flat-right #panelRight .panel-button.clock-display:active .clock,
+#panel.panel-island-flat-right #panelRight .panel-button.clock-display:checked .clock,
+#panel.panel-island-flat-right #panelRight .panel-button.clock-display:active:hover .clock,
+#panel.panel-island-flat-right #panelRight .panel-button.clock-display:checked:hover .clock,
+#panel.panel-island-flat-right:overview #panelRight .panel-button.clock-display .clock,
+#panel.panel-island-flat-right:overview #panelRight .panel-button.clock-display:hover .clock,
+#panel.panel-island-flat-right:overview #panelRight .panel-button.clock-display:focus .clock,
+#panel.panel-island-flat-right:overview #panelRight .panel-button.clock-display:active .clock,
+#panel.panel-island-flat-right:overview #panelRight .panel-button.clock-display:checked .clock,
+#panel.panel-island-flat-right:overview #panelRight .panel-button.clock-display:active:hover .clock,
+#panel.panel-island-flat-right:overview #panelRight .panel-button.clock-display:checked:hover .clock,
+#panel.panel-island-flat-centre #panelCenter .panel-button.clock-display .clock,
+#panel.panel-island-flat-centre #panelCenter .panel-button.clock-display:hover .clock,
+#panel.panel-island-flat-centre #panelCenter .panel-button.clock-display:focus .clock,
+#panel.panel-island-flat-centre #panelCenter .panel-button.clock-display:active .clock,
+#panel.panel-island-flat-centre #panelCenter .panel-button.clock-display:checked .clock,
+#panel.panel-island-flat-centre #panelCenter .panel-button.clock-display:active:hover .clock,
+#panel.panel-island-flat-centre #panelCenter .panel-button.clock-display:checked:hover .clock,
+#panel.panel-island-flat-centre:overview #panelCenter .panel-button.clock-display .clock,
+#panel.panel-island-flat-centre:overview #panelCenter .panel-button.clock-display:hover .clock,
+#panel.panel-island-flat-centre:overview #panelCenter .panel-button.clock-display:focus .clock,
+#panel.panel-island-flat-centre:overview #panelCenter .panel-button.clock-display:active .clock,
+#panel.panel-island-flat-centre:overview #panelCenter .panel-button.clock-display:checked .clock,
+#panel.panel-island-flat-centre:overview #panelCenter .panel-button.clock-display:active:hover .clock,
+#panel.panel-island-flat-centre:overview #panelCenter .panel-button.clock-display:checked:hover .clock {
+    box-shadow: none;
+    background-color: transparent;
+}
+
+/* A menu opened on the capsule's glass: no background of its own, the glass is. A class, not an inline style, so
+   an extension that rewrites its menu's style as it opens or closes (Quick Lofi) can't bring GNOME's back. */
+.popup-menu-content.panel-island-clear,
+.popup-menu-content.quick-settings.panel-island-clear {
+    background-color: transparent;
+    box-shadow: none;
+    border-color: transparent;
+}
+.popup-menu-boxpointer.panel-island-menu {
+    -arrow-background-color: transparent;
+    -arrow-border-color: transparent;
+    -arrow-border-width: 0;
+}
+
+/* Weather on Isle's Calendar page (isleWeather.js), as its feature/calendar-weather branch styled it: each of
+   its rules, the weather's selectors alone (the branch added some to rules of Isle's shared with others). */
+.isle-cal-weather { padding: 2px 6px; border-radius: 999px; transition-duration: 120ms; }
+.isle-cal-weather:hover { background-color: rgba(255, 255, 255, 0.1); }
+.isle-cal-weather-box { spacing: 4px; }
+.isle-cal-weather-icon { icon-size: 13px; color: rgba(255, 255, 255, 0.9); }
+.isle-cal-weather-temp { font-size: 12px; font-weight: 600; font-feature-settings: "tnum"; }
+.isle-cal-weather:checked { background-color: rgba(255, 255, 255, 0.18); }
+.isle-cal-weather-view { spacing: 6px; }
+.isle-cal-weather-top { spacing: 10px; padding: 0 2px; }
+.isle-sky { width: 52px; height: 52px; }
+.isle-sky-icon { icon-size: 36px; color: #ffffff; }
+.isle-sky-flash { background-color: rgba(255, 255, 255, 0.35); border-radius: 12px; }
+.isle-sky-drop { width: 2px; height: 6px; border-radius: 1px; background-color: rgba(120, 190, 255, 0.95); }
+.isle-sky-flake { width: 3px; height: 3px; border-radius: 2px; background-color: #ffffff; }
+.isle-sky-star { width: 2px; height: 2px; border-radius: 1px; background-color: #ffffff; }
+.isle-cal-weather-big { font-size: 26px; font-weight: 700; font-feature-settings: "tnum"; }
+.isle-cal-weather-summary { font-size: 11px; font-weight: 500; color: rgba(255, 255, 255, 0.65); }
+.isle-cal-weather-details { spacing: 1px; }
+.isle-cal-weather-detail { font-size: 11px; font-weight: 500; color: rgba(255, 255, 255, 0.65); }
+.isle-cal-weather-hours { spacing: 4px; }
+.isle-cal-weather-hour { spacing: 2px; padding: 4px 0; border-radius: 7px; background-color: rgba(255, 255, 255, 0.07); }
+.isle-cal-weather-hour-time { font-size: 10px; font-weight: 500; color: rgba(255, 255, 255, 0.55); }
+.isle-cal-weather-hour-icon { icon-size: 14px; color: rgba(255, 255, 255, 0.9); }
+.isle-cal-weather-hour-temp { font-size: 11px; font-weight: 600; font-feature-settings: "tnum"; }
+#isleIsland.isle-translucent .isle-cal-weather-summary,
+#isleIsland.isle-translucent .isle-cal-weather-detail,
+#isleIsland.isle-translucent .isle-cal-weather-hour-time { color: rgba(255, 255, 255, 0.7); }
+#isleIsland.isle-translucent .isle-cal-weather:hover { background-color: rgba(255, 255, 255, 0.16); }
+#isleIsland.isle-translucent .isle-cal-weather-hour {
+  background-color: rgba(255, 255, 255, 0.08); }
+#isleIsland.isle-glass-dark .isle-cal-weather-hour { background-color: rgba(255, 255, 255, 0.1); }
+#isleIsland.isle-translucent .isle-cal-weather:checked {
+  color: #ffffff;
+  background-color: #3584e4;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22); }
+#isleIsland.isle-translucent .isle-cal-weather:checked:hover { background-color: #4a90e8; }
+#isleIsland.isle-accent-system .isle-cal-weather:checked { color: -st-accent-fg-color; background-color: -st-accent-color; }
+#isleIsland.isle-accent-system .isle-cal-weather:checked:hover { background-color: st-lighten(-st-accent-color, 5%); }
+#isleIsland.isle-glass-dark .isle-cal-weather:checked { box-shadow: none; }
+
+/* The same on Isle's Large (Settings → Size: pages 210 px tall, not 150): six hours, not seven, in cards as tall as
+   the room left below, and all a size up, so nothing is left empty under them. Standard is as above. */
+.isle-cal-weather-view.panel-island-weather-large { spacing: 8px; }
+.panel-island-weather-large .isle-cal-weather-top { spacing: 12px; }
+.panel-island-weather-large .isle-sky { width: 64px; height: 64px; }
+.panel-island-weather-large .isle-sky-icon { icon-size: 44px; }
+.panel-island-weather-large .isle-cal-weather-big { font-size: 32px; }
+.panel-island-weather-large .isle-cal-weather-summary,
+.panel-island-weather-large .isle-cal-weather-detail { font-size: 12px; }
+.panel-island-weather-large .isle-cal-weather-hours { spacing: 6px; }
+.panel-island-weather-large .isle-cal-weather-hour { padding: 6px 0; border-radius: 10px; }
+.panel-island-weather-large .isle-cal-weather-hour-time { font-size: 11px; }
+.panel-island-weather-large .isle-cal-weather-hour-icon { icon-size: 18px; }
+.panel-island-weather-large .isle-cal-weather-hour-temp { font-size: 13px; }
+/* A card's contents together (centred in it, as tall as it is on Large), and its hour's wind there. */
+.isle-cal-weather-hour-content { spacing: 2px; }
+.panel-island-weather-large .isle-cal-weather-hour-content { spacing: 5px; }
+.isle-cal-weather-hour-wind { font-size: 10px; font-weight: 500; color: rgba(255, 255, 255, 0.55); font-feature-settings: "tnum"; }
+#isleIsland.isle-translucent .isle-cal-weather-hour-wind { color: rgba(255, 255, 255, 0.7); }
+
+/* The top bar coloured while Isle is off (Settings → Top bar, topBar.js): as Isle's bar, its text and icons white
+   and, see-through, shadowed to read on a light wallpaper. From Isle's stylesheet. */
+#panel.panel-island-bar .panel-button { color: #ffffff; }
+#panel.panel-island-bar .panel-button:focus, #panel.panel-island-bar .panel-button:hover { box-shadow: inset 0 0 0 100px rgba(255, 255, 255, 0.17); }
+#panel.panel-island-bar .panel-button:active, #panel.panel-island-bar .panel-button:checked { box-shadow: inset 0 0 0 100px rgba(255, 255, 255, 0.28); }
+#panel.panel-island-bar .panel-button:active:hover, #panel.panel-island-bar .panel-button:checked:hover { box-shadow: inset 0 0 0 100px rgba(255, 255, 255, 0.32); }
+#panel.panel-island-bar .panel-button#panelActivities .workspace-dot { background-color: #ffffff; }
+/* Screen recording and sharing keep GNOME's own red and orange (its dark style's, as the bar is). */
+#panel.panel-island-bar .panel-button.screen-recording-indicator:focus,
+#panel.panel-island-bar .panel-button.screen-recording-indicator:hover { box-shadow: inset 0 0 0 100px #d61f2d; }
+#panel.panel-island-bar .panel-button.screen-recording-indicator:active,
+#panel.panel-island-bar .panel-button.screen-recording-indicator:checked { box-shadow: inset 0 0 0 100px #e02a37; }
+#panel.panel-island-bar .panel-button.screen-recording-indicator:active:hover,
+#panel.panel-island-bar .panel-button.screen-recording-indicator:checked:hover { box-shadow: inset 0 0 0 100px #e13340; }
+#panel.panel-island-bar .panel-button.screen-sharing-indicator:focus,
+#panel.panel-island-bar .panel-button.screen-sharing-indicator:hover { box-shadow: inset 0 0 0 100px #ff861a; }
+#panel.panel-island-bar .panel-button.screen-sharing-indicator:active,
+#panel.panel-island-bar .panel-button.screen-sharing-indicator:checked { box-shadow: inset 0 0 0 100px #ff902e; }
+#panel.panel-island-bar .panel-button.screen-sharing-indicator:active:hover,
+#panel.panel-island-bar .panel-button.screen-sharing-indicator:checked:hover { box-shadow: inset 0 0 0 100px #ff9638; }
+#panel.panel-island-glass-bar .panel-button {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+  icon-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+}

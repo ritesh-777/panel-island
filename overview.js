@@ -1,0 +1,342 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Glass that blurs what GNOME is really showing behind it, also where GNOME draws a scene of its own instead of the
+// desktop. Isle's glass (its GlassBackdrop, glass.js) blurs copies of the wallpaper, the windows and the top bar. Two
+// times GNOME shows something else there:
+//
+//  - the overview: the windows' group (the wallpaper in it too) is hidden, and the overview drawn instead (its own
+//    background, the workspaces and their windows, the dash, search, the app grid). Isle hides its glass there,
+//    leaving its island almost clear;
+//  - a workspace switch (a swipe, a shortcut): a group of its own, over the windows, holds each workspace's wallpaper
+//    and copies of its windows, and slides; the real windows under it, covered, drop out of the glass's copies.
+//
+// Each time, a copy of that scene goes into the glass's copies, over the wallpaper and windows and under the bar, as
+// big as the scene is, and comes out again as it ends: the glass blurs it as it moves.
+//
+// Done to Isle's own code as it runs, never to its files: its two methods, `_syncVisible` and `_windowPlaces`, are
+// wrapped on a backdrop (ours) or on Isle's class (Settings → Keep Isle's glass in the overview). Each wrap is put on
+// only if Isle still has both, falls back to Isle's own method should it fail, and comes off again as it was.
+
+import Clutter from 'gi://Clutter';
+
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+
+/** What the wrap on Isle's class does for Isle's own glass (Settings): keep it over GNOME's scenes (`overview`), and
+ * copy only the windows under its glass itself, not those only in the blur's margin round it (`lighter`: a window
+ * just below the bar, a video playing in it, then never has it blurred again every frame). Ours does both always. */
+const isleDoes = {overview: false, lighter: false};
+
+/** Sets what the wrap on Isle's class does for Isle's glass (see `isleDoes`); its glass looked at again at once. */
+export function setIsleBehaviour({overview = false, lighter = false} = {}) {
+    isleDoes.overview = overview;
+    isleDoes.lighter = lighter;
+    for (const backdrop of known) {
+        if (isOurs(backdrop))
+            continue;
+        try {
+            backdrop._places = null;
+            if (overview)
+                syncScenes(backdrop, scenesFor(backdrop));
+            else
+                clearScenes(backdrop);
+            backdrop._syncVisible?.();
+            backdrop._queueSync?.();
+        } catch (e) {
+            console.warn(`[panel-island] Isle's glass: ${e}`);
+        }
+    }
+}
+
+/** Whether `backdrop` is ours (wrapped on itself, not through Isle's class). */
+const isOurs = backdrop => Object.hasOwn(backdrop, '_syncVisible');
+
+/** Where a window place's window is seen: its frame, not its actor's box, which takes in the invisible margins round it
+ * (its shadow, its resize edges) that reach up under the bar from a window maximised below it. Its box without one. */
+function seenBox(place) {
+    try {
+        const r = place.actor?.meta_window?.get_frame_rect?.();
+        if (r && r.width > 0 && r.height > 0)
+            return {x: r.x, y: r.y, width: r.width, height: r.height};
+    } catch {}
+    return place;
+}
+
+/** Whether the window place `a` and the glass's own area `b` ({stageX, stageY, width, height}, Isle's `_rect`) meet:
+ * the window as it is seen (its frame), so one below the bar its shadow reaches under is not taken for one under it. */
+const meets = (place, b) => {
+    const a = seenBox(place);
+    return a.x < b.stageX + b.width && a.x + a.width > b.stageX && a.y < b.stageY + b.height && a.y + a.height > b.stageY;
+};
+
+/** The backdrops seen with a wrap on, alive: each given the scenes as they come and go. */
+const known = new Set();
+/** The workspace-switch groups on the screen now. */
+const switching = new Set();
+let watchIds = null;
+let overviewIds = [];
+/** Whether the first copy of this session has been noted in the log. */
+let noted = false;
+
+/** Whether the overview is on the screen (opening, open, or closing: it draws the windows all that time). */
+const inOverview = () => Main.overview.visible;
+
+/** The glass's least time between two blurs (ms) while GNOME animates a scene under it (the overview opening or
+ * closing, a workspace switch): half its usual rate (shape.js), each layer's blur costing less every frame of it. */
+const SCENE_FRAME_MS = 66;
+const RESTING_FRAME_MS = 33;
+
+/** Whether the overview is opening or closing: from 'showing' or 'hiding' until 'shown' or 'hidden' (by a gesture
+ * too, where GNOME sets its own animationInProgress only after saying it is showing). */
+let overviewMoving = false;
+
+/** Whether GNOME is animating a scene of its own now: a workspace switch, or the overview opening or closing. */
+const animatingScene = () => switching.size > 0 || overviewMoving || Boolean(Main.overview.animationInProgress);
+
+/** Whether `backdrop` is on the screen: hidden (our menu's glass with no menu open), it is given no scene to copy,
+ * as nothing of it is seen. */
+const shown = backdrop => backdrop.mapped ?? true;
+
+/** The scenes `backdrop` is given now: those GNOME draws, while it is on and on the screen. */
+const scenesFor = backdrop => (backdrop._on && shown(backdrop) ? scenes() : []);
+
+/** Whether `actor` is a workspace switch's group (workspaceAnimation.js MonitorGroup). */
+function isSwitchGroup(actor) {
+    const name = actor?.constructor?.$gtype?.name ?? '';
+    return actor?.constructor?.name === 'MonitorGroup' || name.endsWith('MonitorGroup');
+}
+
+/** The scenes GNOME is drawing in place of the desktop now, bottom first. */
+function scenes() {
+    const now = [...switching];
+    if (inOverview())
+        now.push(Main.layoutManager.overviewGroup);
+    return now;
+}
+
+/** The wallpaper's copy in `backdrop` shown only while the wallpaper itself is: not in the overview, where the
+ * windows' group it is in is hidden (a scene over it then: by a gesture, the group is hidden only after it opens). */
+function syncWallpaper(backdrop) {
+    const wallpaper = backdrop._wallpaper;
+    if (wallpaper && 'opacity' in wallpaper)
+        wallpaper.opacity = backdrop._panelIslandScenes?.size && !global.window_group.visible ? 0 : 255;
+}
+
+/**
+ * The copies in `backdrop` of each scene in `want` (none for an empty list), over the wallpaper and windows, under
+ * the bar. Each sized as its scene: a copy draws its source scaled to its own size, and these groups are sized by
+ * constraints (the screen's), not by what they ask for, so a copy left to its own size drew them at nothing.
+ */
+function syncScenes(backdrop, want) {
+    const layers = backdrop._layers;
+    const held = backdrop._panelIslandScenes ??= new Map();
+    for (const [source, copy] of held) {
+        if (!want.includes(source)) {
+            copy.destroy();
+            held.delete(source);
+        }
+    }
+    if (layers) {
+        for (const source of want) {
+            if (held.has(source))
+                continue;
+            const copy = new Clutter.Clone({source, reactive: false});
+            copy.add_constraint(new Clutter.BindConstraint({source, coordinate: Clutter.BindCoordinate.SIZE}));
+            copy.set_position(source.x, source.y);
+            if (backdrop._bar?.get_parent?.() === layers)
+                layers.insert_child_below(copy, backdrop._bar);
+            else
+                layers.add_child(copy);
+            held.set(source, copy);
+            if (!noted) {
+                noted = true;
+                console.log(`[panel-island] Glass over GNOME's own scene: copying it, ${source.width}×${source.height}`);
+            }
+        }
+    }
+    // Blurred less often while the scene under it animates (our mask only: Isle's own keeps its rate).
+    const mask = backdrop._mask;
+    if (mask && 'frameMs' in mask)
+        mask.frameMs = held.size && animatingScene() ? SCENE_FRAME_MS : RESTING_FRAME_MS;
+    if (held.size && !backdrop._panelIslandWindowsId)
+        backdrop._panelIslandWindowsId = global.window_group.connect('notify::visible', () => syncWallpaper(backdrop));
+    else if (!held.size && backdrop._panelIslandWindowsId) {
+        global.window_group.disconnect(backdrop._panelIslandWindowsId);
+        backdrop._panelIslandWindowsId = 0;
+    }
+    syncWallpaper(backdrop);
+}
+
+/** All of `backdrop`'s scene copies out, its wallpaper's copy shown. */
+function clearScenes(backdrop) {
+    try {
+        syncScenes(backdrop, []);
+    } catch {}
+}
+
+/** Gives every known backdrop the scenes GNOME draws now. */
+function syncAll() {
+    const now = scenes();
+    for (const backdrop of known) {
+        try {
+            syncScenes(backdrop, backdrop._on && shown(backdrop) ? now : []);
+        } catch (e) {
+            console.warn(`[panel-island] Glass over GNOME's own scene: ${e}`);
+        }
+    }
+}
+
+/** A workspace switch's group added or gone, over the windows: the scenes are looked at again. */
+function watchSwitches() {
+    if (watchIds)
+        return;
+    const uiGroup = Main.layoutManager.uiGroup;
+    const added = (_group, actor) => {
+        if (!isSwitchGroup(actor))
+            return;
+        switching.add(actor);
+        actor.connectObject('destroy', () => {
+            switching.delete(actor);
+            syncAll();
+        }, uiGroup);
+        syncAll();
+    };
+    const removed = (_group, actor) => {
+        if (switching.delete(actor))
+            syncAll();
+    };
+    watchIds = [uiGroup.connect('child-added', added), uiGroup.connect('child-removed', removed)];
+    // The overview starting or ending an animation: the scenes, and how often they are blurred, looked at again.
+    overviewIds = ['showing', 'shown', 'hiding', 'hidden'].map(signal => Main.overview.connect(signal, () => {
+        overviewMoving = signal === 'showing' || signal === 'hiding';
+        syncAll();
+    }));
+    uiGroup.get_children().forEach(actor => added(uiGroup, actor));
+}
+
+function unwatchSwitches() {
+    if (!watchIds)
+        return;
+    const uiGroup = Main.layoutManager.uiGroup;
+    watchIds.forEach(id => uiGroup.disconnect(id));
+    watchIds = null;
+    overviewIds.forEach(id => Main.overview.disconnect(id));
+    overviewIds = [];
+    overviewMoving = false;
+    for (const actor of switching)
+        actor.disconnectObject?.(uiGroup);
+    switching.clear();
+}
+
+/** `backdrop` noted, to be given the scenes as they come and go; forgotten as it goes. */
+function know(backdrop) {
+    if (known.has(backdrop))
+        return;
+    known.add(backdrop);
+    // Shown or hidden (our menu's glass as a menu opens or closes): given the scenes, or none, at once.
+    backdrop._panelIslandMappedId ??= backdrop.connect('notify::mapped', () => {
+        try {
+            if (known.has(backdrop))
+                syncScenes(backdrop, scenesFor(backdrop));
+        } catch (e) {
+            console.warn(`[panel-island] Glass over GNOME's own scene: ${e}`);
+        }
+    });
+    backdrop._panelIslandGoneId ??= backdrop.connect('destroy', () => {
+        known.delete(backdrop);
+        if (backdrop._panelIslandWindowsId)
+            global.window_group.disconnect(backdrop._panelIslandWindowsId);
+        backdrop._panelIslandWindowsId = 0;
+        backdrop._panelIslandScenes?.clear();
+    });
+}
+
+/**
+ * Keeps the glass of `target` (one backdrop, or Isle's GlassBackdrop class's prototype) over what GNOME really shows:
+ * in the overview and as workspaces switch. Returns how to take that off again, or null when `target` does not have
+ * what this changes (Isle changed): nothing is done then.
+ */
+export function keepInOverview(target) {
+    const sync = target?._syncVisible, places = target?._windowPlaces;
+    if (typeof sync !== 'function' || typeof places !== 'function')
+        return null;
+    const own = name => Object.getOwnPropertyDescriptor(target, name);
+    const before = {sync: own('_syncVisible'), places: own('_windowPlaces')};
+    watchSwitches();
+
+    // Called by Isle's glass as it turns on or off and as the overview starts to open and once it has closed.
+    target._syncVisible = function () {
+        // Isle's own glass, the overview part off (Settings): as Isle has it.
+        if (!isOurs(this) && !isleDoes.overview) {
+            try {
+                know(this);
+                clearScenes(this);
+            } catch {}
+            return sync.call(this);
+        }
+        try {
+            know(this);
+            this.visible = Boolean(this._on);
+            syncScenes(this, scenesFor(this));
+            // What it copies changes as the overview opens or closes: looked at again.
+            this._queueSync?.();
+        } catch (e) {
+            console.warn(`[panel-island] Glass in the overview, Isle's own way used: ${e}`);
+            clearScenes(this);
+            return sync.call(this);
+        }
+        return undefined;
+    };
+    target._windowPlaces = function () {
+        try {
+            know(this);
+            const ours = isOurs(this);
+            // The overview draws the windows itself (in its copy): not the windows too, or each shows twice.
+            if (inOverview() && (ours || isleDoes.overview)) {
+                this._overrides = [];
+                return [];
+            }
+            const all = places.call(this);
+            // Lighter: only the windows under the glass itself. One only in the blur's margin (a maximised window
+            // just below the bar) is left out: what it draws, a video, never has the glass blurred again for it.
+            // Ours: under its body, its corner flares left out: a flare down the screen's side follows a window's
+            // corner at a gap (Match window corners), so the window under its outline is never under the glass.
+            const area = this._panelIslandBody ?? this._rect;
+            if ((ours || isleDoes.lighter) && area && Array.isArray(all))
+                return all.filter(place => meets(place, area));
+            return all;
+        } catch (e) {
+            console.warn(`[panel-island] Glass in the overview, Isle's own way used: ${e}`);
+        }
+        return places.call(this);
+    };
+
+    return () => {
+        for (const [name, descriptor] of [['_syncVisible', before.sync], ['_windowPlaces', before.places]]) {
+            if (descriptor)
+                Object.defineProperty(target, name, descriptor);
+            else
+                delete target[name];
+        }
+        // Those it was on as Isle has them: no scene copies left in them, shown or hidden Isle's own way.
+        for (const backdrop of [...known]) {
+            // Ours have a wrap of their own (on them, not their class): left as they are when Isle's comes off.
+            const isleOnly = target.isPrototypeOf?.(backdrop) && !Object.hasOwn(backdrop, '_syncVisible');
+            if (backdrop === target || isleOnly) {
+                known.delete(backdrop);
+                clearScenes(backdrop);
+                try {
+                    backdrop._syncVisible?.();
+                } catch {}
+            }
+        }
+    };
+}
+
+/** Lets go of everything (this extension going): every scene copy out, nothing followed. */
+export function releaseOverview() {
+    unwatchSwitches();
+    isleDoes.overview = isleDoes.lighter = false;
+    for (const backdrop of known)
+        clearScenes(backdrop);
+    known.clear();
+}

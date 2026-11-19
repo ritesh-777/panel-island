@@ -1,0 +1,11 @@
+{
+  "uuid": "panel-island@ritesh",
+  "name": "Panel Island",
+  "description": "Glass islands for the top bar: capsules round its left, middle and right items, whose menus open as glass growing out of them. Shares Isle's glass when Isle is installed, and works on its own without it.",
+  "shell-version": [
+    "51"
+  ],
+  "url": "https://github.com/ritesh-777/panel-island",
+  "version-name": "1.0",
+  "settings-schema": "org.gnome.shell.extensions.panel-island"
+}
