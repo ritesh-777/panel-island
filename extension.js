@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Ritesh Seth
 //
 // Panel Island: pill-shaped capsules round the top bar's left and right items, matching Isle's island, and
 // their menus opening as that glass growing out of the button into the menu (and back into it as they close).

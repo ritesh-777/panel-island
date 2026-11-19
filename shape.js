@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Ritesh Seth
 //
 // The side glass's shape: a body whose four corners are each their own. A corner is round (a positive radius),
 // square (0), or flares out concave (a negative one): along the top or bottom edge, as a notch's shoulders do, or

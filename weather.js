@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (C) 2026 zickrian
+// Copyright (C) 2026 Ritesh Seth
 //
 // Written for Isle (its feature/calendar-weather branch) and carried here as it is, for the weather added to Isle's
 // Calendar page as it runs (isleWeather.js): only its one import of Isle's (px) made its own, and its sky's GObject

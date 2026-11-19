@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Ritesh Seth
 //
 // Isle's notch corners as smooth as ours: only the corners. Its glass otherwise as Isle draws it (its blur thinning
 // towards the screen's edge, its light from the top left). Isle's glass (glass.js) works out its rim, glow and lens from its body

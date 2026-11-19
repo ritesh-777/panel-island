@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Ritesh Seth
 //
 // The top bar's colour while Isle is off (Settings → Top bar). Isle on colours the bar itself (from glass to black,
 // its text white); turned off, it hands the bar back to the theme. This keeps it as it was: the same see-through or

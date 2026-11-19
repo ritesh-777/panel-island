@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Ritesh Seth
 //
 // Settings carried over from an older version, once. Used by the extension and its settings window alike (no shell
 // imports).

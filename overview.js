@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Ritesh Seth
 //
 // Glass that blurs what GNOME is really showing behind it, also where GNOME draws a scene of its own instead of the
 // desktop. Isle's glass (its GlassBackdrop, glass.js) blurs copies of the wallpaper, the windows and the top bar. Two

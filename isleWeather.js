@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Ritesh Seth
 //
 // The weather on Isle's Calendar page, as Isle's own feature/calendar-weather branch made it: a chip beside the day
 // (its sky and temperature), and, clicked, the day's weather in full in place of the events (a sky that moves, how
