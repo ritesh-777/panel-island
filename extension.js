@@ -1735,24 +1735,42 @@ export default class PanelIslandExtension extends Extension {
     }
 
     /**
-     * GNOME's Activities button (its workspace dots) held at its width through a workspace switch (`on`), let go as it
-     * ends. Its dots grow and shrink with the slide, each rounded to a whole pixel every frame, so the button's width
-     * flips a pixel back and forth and everything after it in the bar (the workspace numbers, the rest of the left
-     * capsule's items) shakes with it. Held, the dots still move within it as GNOME draws them; nothing after it does.
-     * Only a width it did not already have set by someone else, given back as it was.
+     * The bar's items after GNOME's Activities button (its workspace dots) kept still through a workspace switch (`on`),
+     * let go as it ends. Its dots grow and shrink with the slide, each rounded to a whole pixel every frame: from three
+     * workspaces on (GNOME widens the shown one by a factor whose pixels do not add up evenly then) the button's width
+     * flips a pixel back and forth, and everything after it shook with it. Each of them is moved back by just that much
+     * as it flips, so it stays where it was; the button and its dots are left to GNOME, drawn as GNOME draws them (held
+     * at one width instead, GNOME squeezed its dots into it, and they shook within it).
      */
     _steadyActivities(on) {
         const button = Main.panel.statusArea?.activities?.container;
         if (on) {
-            if (!button || this._steadied || button.natural_width_set || !button.mapped)
+            if (!button || this._steadied || !button.mapped)
                 return;
-            try {
-                button.set_width(Math.round(button.width));
-                this._steadied = button;
-                button.connectObject('destroy', () => (this._steadied = null), this);
-            } catch (e) {
-                console.warn(`[panel-island] Activities button left as it is: ${e}`);
-            }
+            const held = this._steadied = {button, width: button.width, moved: new Map()};
+            const follow = () => {
+                if (this._steadied !== held)
+                    return;
+                try {
+                    const delta = held.width - button.width;
+                    const parent = button.get_parent();
+                    const after = parent ? parent.get_children().slice(parent.get_children().indexOf(button) + 1) : [];
+                    for (const item of after) {
+                        if (!held.moved.has(item)) {
+                            // Its own sideways shift, if any, kept under ours and given back.
+                            held.moved.set(item, item.translation_x);
+                            item.connectObject('destroy', () => held.moved.delete(item), this);
+                        }
+                        const want = held.moved.get(item) + delta;
+                        if (item.translation_x !== want)
+                            item.translation_x = want;
+                    }
+                } catch (e) {
+                    console.warn(`[panel-island] The bar's items left to shake with the workspace dots: ${e}`);
+                }
+            };
+            button.connectObject('notify::width', follow, 'destroy', () => this._steadyActivities(false), this);
+            follow();
             return;
         }
         const held = this._steadied;
@@ -1760,9 +1778,15 @@ export default class PanelIslandExtension extends Extension {
         if (!held)
             return;
         try {
-            held.disconnectObject(this);
-            held.set_width(-1);
+            held.button.disconnectObject(this);
         } catch {}
+        for (const [item, own] of held.moved) {
+            try {
+                item.disconnectObject(this);
+                item.translation_x = own;
+            } catch {}
+        }
+        held.moved.clear();
     }
 
     _queue() {
