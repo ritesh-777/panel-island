@@ -93,6 +93,8 @@ Open the Extensions app, find **Panel Island**, and click the settings button. S
 - **Edge blur** — Fades into clear glass towards the screen's edge, or stays solid to it.
 - **Left capsule / Right capsule** — Each side on or off. A side turned off looks and opens as GNOME's.
 - **Middle capsule** — Automatic (only while Isle is off), On or Off.
+- **Keep GNOME's Activities button** — Shown even when another extension hides it, such as O-tiling's workspace
+  numbers, so both sit side by side.
 - **Flat buttons** — No shading on a button under the pointer or pressed.
 
 ### Top Bar

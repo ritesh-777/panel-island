@@ -203,6 +203,8 @@ export default class PanelIslandPreferences extends ExtensionPreferences {
         capsules.add(switchRow(settings, 'left-capsule', 'Left capsule', 'Activities, workspaces, app menu'));
         capsules.add(choiceRow(settings, 'centre-capsule', 'Middle capsule', CENTRE));
         capsules.add(switchRow(settings, 'right-capsule', 'Right capsule', 'Tray icons and quick settings'));
+        capsules.add(switchRow(settings, 'keep-activities', 'Keep GNOME\'s Activities button',
+            'Shown even when another extension hides it, such as O-tiling\'s workspace numbers'));
         capsules.add(switchRow(settings, 'flat-buttons', 'Flat buttons',
             'No shading on a button under the pointer or pressed'));
         page.add(capsules);

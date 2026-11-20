@@ -9,6 +9,11 @@
       <default>true</default>
       <summary>Capsule round the bar's right items</summary>
     </key>
+    <key name="keep-activities" type="b">
+      <default>false</default>
+      <summary>Keep GNOME's Activities button</summary>
+      <description>Show GNOME's own Activities button (its workspace dots) again when another extension hides it, such as O-tiling's workspace numbers.</description>
+    </key>
     <key name="centre-capsule" type="s">
       <choices>
         <choice value="auto"/>

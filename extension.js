@@ -20,6 +20,7 @@ import {ExtensionState} from 'resource:///org/gnome/shell/misc/extensionUtils.js
 
 import {migrate} from './migrate.js';
 import {keepBar, setBar} from './topBar.js';
+import {keepActivities} from './activities.js';
 import {keepInOverview, releaseOverview, setIsleBehaviour} from './overview.js';
 import {setIsleSolidEdge, smoothIsleCorners} from './isleCorners.js';
 import {addIsleWeather} from './isleWeather.js';
@@ -613,6 +614,7 @@ export default class PanelIslandExtension extends Extension {
             'changed::right-capsule', () => this._applySides(),
             'changed::centre-capsule', () => this._applySides(),
             'changed::top-bar', () => this._applyBar(),
+            'changed::keep-activities', () => this._applyActivities(),
             'changed::top-bar-opacity', () => this._applyBar(),
             'changed::flat-buttons', () => this._applyFlat(),
             'changed::theme', () => this._applyTheme(),
@@ -650,9 +652,17 @@ export default class PanelIslandExtension extends Extension {
         this._applyFlat();
         keepBar(true);
         this._applyBar();
+        this._applyActivities();
         // Logging in, the shell is still setting itself up as extensions start: the bar coloured again once it is done.
         if (Main.layoutManager._startingUp)
             Main.layoutManager.connectObject('startup-complete', () => this._applyBar(), this);
+    }
+
+    /** Settings → Keep GNOME's Activities button (activities.js). */
+    _applyActivities() {
+        if (this._dead)
+            return;
+        keepActivities(this._settings.get_boolean('keep-activities'));
     }
 
     /** Settings → Top bar, while Isle is off (Isle on colours it itself): as Isle's Settings colour it, as set here,
@@ -1394,6 +1404,7 @@ export default class PanelIslandExtension extends Extension {
             // Already gone with the shell's bar: only what is ours to drop.
             Main.extensionManager.disconnectObject(this);
             keepBar(false);
+            keepActivities(false);
             this._isleSettings?.disconnectObject(this);
             this._rwcSettings?.disconnectObject(this);
             this._rwcSettings = null;
@@ -1420,6 +1431,7 @@ export default class PanelIslandExtension extends Extension {
             Main.panel.remove_style_class_name(`panel-island-flat-${side}`);
         keepBar(false);
         setBar(null);
+        keepActivities(false);
         this._settings = null;
         this._watched?.forEach(child => child.disconnectObject(this));
         this._watched?.clear();
