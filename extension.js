@@ -365,6 +365,10 @@ class Capsule extends Glass {
         const key = JSON.stringify(this.rect);
         if (key !== this._key) {
             this._key = key;
+            // Kept on the bar's monitor, as a menu's glass is: a top corner's flare runs past the screen's top.
+            const monitor = Main.layoutManager.findMonitorForActor(panel) ?? Main.layoutManager.primaryMonitor;
+            if (monitor)
+                this.actor.set_clip(monitor.x, monitor.y, monitor.width, monitor.height);
             this.place(this.rect);
         }
     }
@@ -986,7 +990,7 @@ export default class PanelIslandExtension extends Extension {
             top = capsuleHeight / 2;
             bottom = menu ? Math.max(menu.radius, capsuleHeight / 2) : capsuleHeight / 2;
         }
-        let outerTop = top, outerBottom = bottom, outerFlare = ALONG_EDGE, outerCut = 0;
+        let outerTop = top, outerBottom = bottom, outerFlare = ALONG_EDGE, outerCut = 0, outerTopCut = 0;
         const reach = !centre && this._settings.get_boolean('reach-edges') && monitor;
         if (reach) {
             if (leftSide)
@@ -998,12 +1002,18 @@ export default class PanelIslandExtension extends Extension {
             // Match window corners: the corner's size from the windows' corners, its radius's sign picking which way
             // it goes (+ round, − flared, 0 square).
             const sign = v => Math.sign(v);
-            // The top corner: round as a window's corner, flared by it, or its radius; flaring up the screen's side only
-            // into the room above (a pill's gap; none for a notch). No window above to keep a gap from.
-            outerTop = topCorner.match ? sign(topCorner.radius) * Math.max(0, topCorner.windowRadius) * s
-                : topCorner.radius * s;
-            if (outerTop < 0)
-                outerTop = -Math.min(-outerTop, y - monitor.y);
+            // The top corner: round as a window's corner, or its radius. Flared, it mirrors the bottom's flare across
+            // the capsule, its whole curve kept: by its own radius, as the bottom's is; matching the windows, as big as
+            // a window's corner and the gap above (a pill's; none for a notch), about a centre cut in by that gap, as
+            // the bottom's round the window below. What reaches past the screen's top is cut off by the clip.
+            const topGap = Math.max(0, y - monitor.y);
+            if (topCorner.match && topCorner.radius < 0) {
+                outerTop = -(Math.max(0, topCorner.windowRadius) * s + topGap);
+                outerTopCut = topGap;
+            } else {
+                outerTop = topCorner.match ? sign(topCorner.radius) * Math.max(0, topCorner.windowRadius) * s
+                    : topCorner.radius * s;
+            }
             // The bottom corner, closed, matching a window right below the bar: round, as round as the window's corner
             // (the two curves mirroring each other across the gap); or flared, following the window's corner at an
             // even gap: a flare as big as that corner and the gap, about the same centre (cut in by the gap), meeting
@@ -1030,7 +1040,7 @@ export default class PanelIslandExtension extends Extension {
         const corners = leftSide ? [outerTop, top, bottom, outerBottom] : [top, outerTop, outerBottom, bottom];
         const flares = leftSide ? [outerFlare, ALONG_EDGE, ALONG_EDGE, outerFlare]
             : [ALONG_EDGE, outerFlare, outerFlare, ALONG_EDGE];
-        const cuts = leftSide ? [0, 0, 0, outerCut] : [0, 0, outerCut, 0];
+        const cuts = leftSide ? [outerTopCut, 0, 0, outerCut] : [0, outerTopCut, outerCut, 0];
         const flush = [notch ? 1 : 0, reach && !leftSide ? 1 : 0, 0, reach && leftSide ? 1 : 0];
         return {x: x1, y, width: Math.max(capsuleHeight, x2 - x1), height, corners, flares, cuts, flush};
     }

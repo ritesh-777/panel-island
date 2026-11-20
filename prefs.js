@@ -148,7 +148,7 @@ function cornerRows(settings, group, prefix, top) {
             : 'In px. Positive rounds it in, 0 leaves it square, negative flares it out down the screen\'s side',
         {lower: -48, upper: 48, step: 1});
     const match = switchRow(settings, `${prefix}match-windows`, 'Match window corners',
-        top ? 'Sized as a window\'s corner. The radius\'s sign picks the way: + round, − flared, 0 square'
+        top ? 'Sized as a window\'s corner. + round as it; − flared, as the bottom\'s mirrored; 0 square'
             : 'Sized from a window\'s corner below the bar. + round as it; − flared, following it at an even gap; 0 square');
     const radiusAuto = switchRow(settings, `${prefix}window-radius-auto`, 'Window radius from Rounded Window Corners',
         'Its corner radius, or libadwaita\'s 15 px without it');
