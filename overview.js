@@ -20,6 +20,9 @@
 
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
+import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
+import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
@@ -159,7 +162,8 @@ function unwatchPower() {
 
 /** The scenes GNOME draws now, for `backdrop` (Isle's not given a switch's on battery). */
 function scenes(backdrop = null) {
-    const now = stillDuringSwitch() ? [] : [...switching];
+    // Ours, sharing the switch's one blur (`syncShared`): no copy of its own.
+    const now = stillDuringSwitch() || sharesSwitch(backdrop) ? [] : [...switching];
     if (inOverview())
         now.push(Main.layoutManager.overviewGroup);
     return now;
@@ -213,7 +217,7 @@ function syncScenes(backdrop, want) {
         const was = mask.frameMs;
         // Live (Settings → Glass during workspace switches): every frame while GNOME animates a scene under it, the
         // blur moving with the slide; the halved rate (`SCENE_FRAME_MS`) only when held still is not chosen at all.
-        const animating = held.size && animatingScene();
+        const animating = (held.size || sharesSwitch(backdrop)) && animatingScene();
         mask.frameMs = frozen ? FROZEN_MS : animating ? (stillDuringSwitch() ? SCENE_FRAME_MS : 0) : RESTING_FRAME_MS;
         if (was === FROZEN_MS && !frozen) {
             mask.stopCatchUp?.();
@@ -227,6 +231,212 @@ function syncScenes(backdrop, want) {
         backdrop._panelIslandWindowsId = 0;
     }
     syncWallpaper(backdrop);
+    syncShared();
+}
+
+/*
+ * Live workspace switches, shared: one copy of the sliding scene's strip under all our glass (and Isle's island), blurred once a frame,
+ * instead of each glass copying the whole scene and blurring its own part of it (each copy has GNOME draw every
+ * workspace's wallpaper and windows again, the CPU's work, once per glass per frame). The copy is hidden: it is drawn
+ * only through a clone of it in each glass, in place of that glass's own blurred frame. Its blur keeps what it drew
+ * until the scene under it changes, so the first glass drawn in a frame blurs it and the others show that same blur;
+ * each glass's mask (its shape, edge light, lens, tint) is still its own, on what it shows of it. Isle's island shares
+ * it while Isle's glass is kept over GNOME's scenes (see `canShare`), its own mask on it. One shared copy per blur look (radius, brightness), light and dark glass apart.
+ */
+
+/** Each shared copy, by its look's key: {frame (hidden, blurred), layers (the scene's copies), copies (by scene),
+ * blur, strip ({x, y, width, height} on the screen)}. */
+const shared = new Map();
+
+/** Whether a Live switch is under the glass now, outside the overview: what is shared. */
+const sharing = () => !stillDuringSwitch() && switching.size > 0 && !inOverview();
+
+/** Whether `backdrop` can show a shared copy: ours, or Isle's own island while the wrap on Isle's class keeps it over
+ * GNOME's scenes (Settings → Keep Isle's glass in the overview: it would copy the slide itself otherwise), done to it
+ * as it runs, never to Isle's files; with Isle's frame and blur as Isle 1.7 has them, placed. */
+const canShare = backdrop => (isOurs(backdrop) || isleDoes.overview) && backdrop._frame instanceof Clutter.Actor &&
+    backdrop._blur instanceof Shell.BlurEffect && typeof backdrop._frameRect === 'function' && Boolean(backdrop._rect);
+
+/** Whether `backdrop` shows the switch through a shared copy now (not a copy of its own). */
+const sharesSwitch = backdrop => Boolean(backdrop) && sharing() && backdrop._on && shown(backdrop) &&
+    !backdrop._panelIslandNoShare && canShare(backdrop);
+
+/** A shared copy's key: its blur's look. */
+const keyOf = backdrop => `${backdrop._blur.radius}:${backdrop._blur.brightness}`;
+
+/** `backdrop` back to its own frame (its clone of a shared copy taken out). */
+function dropShared(backdrop) {
+    const clone = backdrop._panelIslandShared;
+    if (!clone)
+        return;
+    backdrop._panelIslandShared = null;
+    try {
+        clone.destroy();
+    } catch {}
+    try {
+        backdrop._frame.visible = true;
+    } catch {}
+}
+
+/** Every shared copy gone. */
+function closeShared() {
+    for (const entry of shared.values()) {
+        try {
+            entry.frame.destroy();
+        } catch {}
+    }
+    shared.clear();
+    holder?.destroy();
+    holder = null;
+}
+
+/** Where the shared copies are kept: on the stage and shown (so each stays mapped, and its blur kept from one clone
+ * of it to the next within a frame, not mapped anew for each), but never drawn itself: only its clones draw it. */
+const Unpainted = GObject.registerClass({GTypeName: 'PanelIslandUnpainted'}, class Unpainted extends Clutter.Actor {
+    vfunc_paint(_paintContext) {}
+
+    vfunc_pick(_pickContext) {}
+});
+let holder = null;
+
+/** A new shared copy blurred as `backdrop`'s glass is, kept unpainted. */
+function openShared(backdrop) {
+    if (!holder) {
+        holder = new Unpainted({reactive: false});
+        holder.connect('destroy', () => {
+            holder = null;
+        });
+        Main.layoutManager.uiGroup.add_child(holder);
+    }
+    const frame = new St.Widget({clip_to_allocation: true, reactive: false});
+    const layers = new Clutter.Actor();
+    frame.add_child(layers);
+    const blur = new Shell.BlurEffect({mode: Shell.BlurMode.ACTOR, radius: backdrop._blur.radius,
+        brightness: backdrop._blur.brightness});
+    frame.add_effect(blur);
+    holder.add_child(frame);
+    return {frame, layers, blur, copies: new Map(), strip: null};
+}
+
+/** Whether `a` and `b` ({x, y, width, height}) are the same. */
+const sameRect = (a, b) => Boolean(a && b) && ['x', 'y', 'width', 'height'].every(k => a[k] === b[k]);
+
+/** The shared copies made, sized and given to the glass that shows them, as a Live switch goes on; all taken back
+ * as it ends (or as the glass shows something else). */
+function syncShared() {
+    const users = [...known].filter(sharesSwitch);
+    for (const backdrop of known) {
+        if (!users.includes(backdrop))
+            dropShared(backdrop);
+    }
+    const byKey = new Map();
+    for (const backdrop of users) {
+        const key = keyOf(backdrop);
+        if (!byKey.has(key))
+            byKey.set(key, []);
+        byKey.get(key).push(backdrop);
+    }
+    for (const [key, entry] of shared) {
+        if (!byKey.has(key)) {
+            entry.frame.destroy();
+            shared.delete(key);
+        }
+    }
+    for (const [key, group] of byKey) {
+        try {
+            syncSharedGroup(key, group);
+        } catch (e) {
+            // Each falls back to a copy of its own, as before.
+            console.warn(`[panel-island] Shared glass for workspace switches not used: ${e}`);
+            for (const backdrop of group) {
+                dropShared(backdrop);
+                backdrop._panelIslandNoShare = true;
+            }
+            shared.get(key)?.frame.destroy();
+            shared.delete(key);
+            for (const backdrop of group)
+                syncScenes(backdrop, scenesFor(backdrop));
+        }
+    }
+    // The switch over: nothing kept.
+    if (!shared.size && holder)
+        closeShared();
+}
+
+/** The shared copy `key` covering all the frames of the glass in `group` (screen px), the scene's groups in it at
+ * their places, each glass showing its own part of it in place of its own frame. */
+function syncSharedGroup(key, group) {
+    let entry = shared.get(key);
+    if (!entry) {
+        entry = openShared(group[0]);
+        shared.set(key, entry);
+        if (!notedShared) {
+            notedShared = true;
+            const isle = group.filter(backdrop => !isOurs(backdrop)).length;
+            console.log(`[panel-island] Live workspace switch: one shared blur for ${group.length} glass ` +
+                `(${isle} of them Isle's)`);
+        }
+    }
+    const rects = group.map(backdrop => backdrop._frameRect()).filter(Boolean);
+    const x0 = Math.floor(Math.min(...rects.map(r => r.x))), y0 = Math.floor(Math.min(...rects.map(r => r.y)));
+    const x1 = Math.ceil(Math.max(...rects.map(r => r.x + r.width)));
+    const y1 = Math.ceil(Math.max(...rects.map(r => r.y + r.height)));
+    const strip = {x: x0, y: y0, width: Math.max(1, x1 - x0), height: Math.max(1, y1 - y0)};
+    if (!sameRect(entry.strip, strip)) {
+        entry.strip = strip;
+        entry.frame.set_size(strip.width, strip.height);
+        entry.layers.set_position(-strip.x, -strip.y);
+    }
+    // The scene's groups, bottom first, as the screen stacks them.
+    const want = [...switching];
+    for (const [source, copy] of entry.copies) {
+        if (!want.includes(source)) {
+            copy.destroy();
+            entry.copies.delete(source);
+        }
+    }
+    for (const source of want) {
+        let copy = entry.copies.get(source);
+        if (!copy) {
+            copy = new Clutter.Clone({source, reactive: false});
+            copy.add_constraint(new Clutter.BindConstraint({source, coordinate: Clutter.BindCoordinate.SIZE}));
+            entry.layers.add_child(copy);
+            entry.copies.set(source, copy);
+        }
+        if (copy.x !== source.x || copy.y !== source.y)
+            copy.set_position(source.x, source.y);
+    }
+    for (const backdrop of group) {
+        let clone = backdrop._panelIslandShared;
+        if (clone && clone.source !== entry.frame) {
+            dropShared(backdrop);
+            clone = null;
+        }
+        if (!clone) {
+            clone = new Clutter.Clone({source: entry.frame, reactive: false});
+            backdrop.insert_child_above(clone, backdrop._frame);
+            backdrop._panelIslandShared = clone;
+        }
+        backdrop._frame.visible = false;
+        const rect = backdrop._rect;
+        const at = [strip.x - Math.round(rect.stageX), strip.y - Math.round(rect.stageY)];
+        if (clone.x !== at[0] || clone.y !== at[1])
+            clone.set_position(...at);
+        if (clone.width !== strip.width || clone.height !== strip.height)
+            clone.set_size(strip.width, strip.height);
+    }
+}
+let notedShared = false;
+
+/** Our glass `backdrop` just placed (extension.js `Glass.place`): its part of a shared copy kept under it. */
+export function followShared(backdrop) {
+    if (!backdrop?._panelIslandShared)
+        return;
+    try {
+        syncShared();
+    } catch (e) {
+        console.warn(`[panel-island] Shared glass: ${e}`);
+    }
 }
 
 /** All of `backdrop`'s scene copies out, its wallpaper's copy shown. */
@@ -234,6 +444,7 @@ function clearScenes(backdrop) {
     try {
         syncScenes(backdrop, []);
     } catch {}
+    dropShared(backdrop);
 }
 
 /** Gives every known backdrop the scenes GNOME draws now. */
@@ -243,6 +454,30 @@ function syncAll() {
             syncScenes(backdrop, scenesFor(backdrop));
         } catch (e) {
             console.warn(`[panel-island] Glass over GNOME's own scene: ${e}`);
+        }
+    }
+}
+
+/** Told as a workspace switch starts or ends (see `onSwitch`). */
+const switchListeners = new Set();
+
+/** Whether a workspace switch is sliding now. */
+export const isSwitching = () => switching.size > 0;
+
+/** `callback()` called as a workspace switch starts or ends; returns how to stop that. */
+export function onSwitch(callback) {
+    switchListeners.add(callback);
+    return () => switchListeners.delete(callback);
+}
+
+/** A switch's group came or went: the glass given the scenes again, and those following switches told. */
+function switchChanged() {
+    syncAll();
+    for (const callback of [...switchListeners]) {
+        try {
+            callback();
+        } catch (e) {
+            console.warn(`[panel-island] After a workspace switch: ${e}`);
         }
     }
 }
@@ -258,13 +493,13 @@ function watchSwitches() {
         switching.add(actor);
         actor.connectObject('destroy', () => {
             switching.delete(actor);
-            syncAll();
+            switchChanged();
         }, uiGroup);
-        syncAll();
+        switchChanged();
     };
     const removed = (_group, actor) => {
         if (switching.delete(actor))
-            syncAll();
+            switchChanged();
     };
     watchIds = [uiGroup.connect('child-added', added), uiGroup.connect('child-removed', removed)];
     // The overview starting or ending an animation: the scenes, and how often they are blurred, looked at again.
@@ -309,6 +544,7 @@ function know(backdrop) {
             global.window_group.disconnect(backdrop._panelIslandWindowsId);
         backdrop._panelIslandWindowsId = 0;
         backdrop._panelIslandScenes?.clear();
+        backdrop._panelIslandShared = null;
     });
 }
 
@@ -350,6 +586,9 @@ export function keepInOverview(target) {
         return undefined;
     };
     target._windowPlaces = function () {
+        // Isle's glass, placed anew (it looks at the windows again then): its part of a shared copy kept under it.
+        if (!isOurs(this))
+            followShared(this);
         try {
             know(this);
             const ours = isOurs(this);
@@ -403,4 +642,6 @@ export function releaseOverview() {
     for (const backdrop of known)
         clearScenes(backdrop);
     known.clear();
+    closeShared();
+    switchListeners.clear();
 }

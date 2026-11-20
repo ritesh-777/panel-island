@@ -23,7 +23,8 @@ import {keepBar, setBar} from './topBar.js';
 import {keepActivities} from './activities.js';
 import {IslandService} from './island.js';
 import {WorkspaceGlass} from './workspaceGlass.js';
-import {keepInOverview, releaseOverview, setIsleBehaviour, setSwitchGlass} from './overview.js';
+import {followShared, isSwitching, keepInOverview, onSwitch, releaseOverview, setIsleBehaviour, setSwitchGlass}
+    from './overview.js';
 import {setIsleSolidEdge, smoothIsleCorners} from './isleCorners.js';
 import {addIsleWeather} from './isleWeather.js';
 import {lightIsle} from './isleLight.js';
@@ -97,6 +98,8 @@ const isleRunning = () => {
     return state !== undefined && (state === ExtensionState.ACTIVE || state === ExtensionState.ENABLED);
 };
 const scale = () => St.ThemeContext.get_for_stage(global.stage).scale_factor;
+/** How far (CSS px) a capsule's items may wobble during a workspace switch and the capsule stay as it was. */
+const SWITCH_SLACK = 2;
 const animating = () => St.Settings.get().enable_animations;
 const lerp = (a, b, t) => a + (b - a) * t;
 const easeOutBack = t => 1 + 2.1 * (t - 1) ** 3 + 1.1 * (t - 1) ** 2;
@@ -304,6 +307,8 @@ class Glass {
             crown: this._mask ? 0 : Math.max(0, Math.min(c[TL], c[TR])),
             shoulder: this._mask ? 0 : shoulder, reach: GLOW_REACH * s, open: 0,
         });
+        // A Live workspace switch's shared blur, if it shows one, kept lined up with where it now is (overview.js).
+        followShared(this.backdrop);
         // The body alone, flares left out: what the windows under the glass are told by (overview.js).
         const body = {stageX: shape.x, stageY: shape.y, width: shape.width, height: shape.height};
         const old = this.backdrop._panelIslandBody;
@@ -458,7 +463,18 @@ class Capsule extends Glass {
     }
 
     update() {
-        const extent = this._extent();
+        let extent = this._extent();
+        // During a workspace switch GNOME's workspace dots (the Activities button) grow and shrink with the slide, each
+        // rounded to a whole pixel every frame: what they add up to wobbles by a pixel or two, and the items after them
+        // with it. Held still through the switch, so the capsule does not dance (and, held still in Still mode, is not
+        // blurred again for it); anything moving further, a real change, followed at once; exact again once it ends.
+        const held = this._steadyExtent;
+        if (extent && held && isSwitching()) {
+            const slack = SWITCH_SLACK * scale();
+            if (Math.abs(extent[0] - held[0]) <= slack && Math.abs(extent[1] - held[1]) <= slack)
+                extent = held;
+        }
+        this._steadyExtent = extent;
         const panel = Main.panel;
         if (!extent || !panel.mapped || !this._enabled) {
             this.actor.hide();
@@ -839,6 +855,11 @@ export default class PanelIslandExtension extends Extension {
             'changed::patch-isle-light', () => this._applyIslePatch(),
             'changed::switch-glass', () => setSwitchGlass(this._settings.get_string('switch-glass')), this);
         setSwitchGlass(this._settings.get_string('switch-glass'));
+        // A switch starting or ending: the capsules looked at again (exact once it is over, see `Capsule.update`).
+        this._unwatchSwitch = onSwitch(() => {
+            this._steadyActivities(isSwitching());
+            this._queue();
+        });
         // Isle turned on or off: the middle capsule gives the clock to Isle's island, or takes it back.
         Main.extensionManager.connectObject('extension-state-changed', (_manager, extension) => {
             if (extension?.uuid === ISLE_UUID) {
@@ -1658,6 +1679,37 @@ export default class PanelIslandExtension extends Extension {
         this._queue();
     }
 
+    /**
+     * GNOME's Activities button (its workspace dots) held at its width through a workspace switch (`on`), let go as it
+     * ends. Its dots grow and shrink with the slide, each rounded to a whole pixel every frame, so the button's width
+     * flips a pixel back and forth and everything after it in the bar (the workspace numbers, the rest of the left
+     * capsule's items) shakes with it. Held, the dots still move within it as GNOME draws them; nothing after it does.
+     * Only a width it did not already have set by someone else, given back as it was.
+     */
+    _steadyActivities(on) {
+        const button = Main.panel.statusArea?.activities?.container;
+        if (on) {
+            if (!button || this._steadied || button.natural_width_set || !button.mapped)
+                return;
+            try {
+                button.set_width(Math.round(button.width));
+                this._steadied = button;
+                button.connectObject('destroy', () => (this._steadied = null), this);
+            } catch (e) {
+                console.warn(`[panel-island] Activities button left as it is: ${e}`);
+            }
+            return;
+        }
+        const held = this._steadied;
+        this._steadied = null;
+        if (!held)
+            return;
+        try {
+            held.disconnectObject(this);
+            held.set_width(-1);
+        } catch {}
+    }
+
     _queue() {
         if (this._dead || this._later || !this._container)
             return;
@@ -1694,6 +1746,9 @@ export default class PanelIslandExtension extends Extension {
         this._isleCalendar = null;
         this._Mask = null;
         this._GlassBackdrop = null;
+        this._unwatchSwitch?.();
+        this._unwatchSwitch = null;
+        this._steadyActivities(false);
         releaseOverview();
         if (this._dead) {
             // Already gone with the shell's bar: only what is ours to drop.
