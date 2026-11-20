@@ -209,6 +209,22 @@ export default class PanelIslandPreferences extends ExtensionPreferences {
             'No shading on a button under the pointer or pressed'));
         page.add(capsules);
 
+        const workspaces = new Adw.PreferencesGroup({
+            title: 'Workspaces',
+            description: 'In the left capsule.',
+        });
+        workspaces.add(switchRow(settings, 'workspace-peek', 'Workspace peek',
+            'Rest the pointer on the workspace buttons: a live preview of each workspace. Click one to go there, drag a window onto one to move it'));
+        const peekDelay = spinRow(settings, 'peek-delay', 'Peek delay',
+            'How long the pointer rests before it opens, in milliseconds', {lower: 100, upper: 2000, step: 50});
+        const syncPeek = () => (peekDelay.sensitive = settings.get_boolean('workspace-peek'));
+        settings.connect('changed::workspace-peek', syncPeek);
+        syncPeek();
+        workspaces.add(peekDelay);
+        workspaces.add(switchRow(settings, 'attention-glow', 'Attention glow',
+            'The capsule\'s edge glows while a window on another workspace asks for attention'));
+        page.add(workspaces);
+
         const isle = new Adw.PreferencesGroup({
             title: 'Isle',
             description: 'Changes to Isle itself, made as it runs. Its files are never touched; turned off, or should Isle change so they no longer apply, Isle is as it always is.',

@@ -32,6 +32,10 @@ Panel Island draws the whole bar itself.
 - **Glass or black**, with glass strength, edge light and edge blur of its own.
 - **Edge to edge**: the side capsules can run to the screen's sides, their corners rounded, square or flaring down
   the screen's side, optionally matching your windows' corners.
+- **Workspace peek**: rest the pointer on the workspace buttons and the left capsule grows into glass with a live
+  preview of each workspace. Click one to go there, or drag a window onto one to move it.
+- **Attention glow**: the left capsule's edge glows in your accent colour while a window on another workspace asks
+  for attention.
 - **Flat buttons**: no hover shading on the buttons in a capsule; the glass is the feedback.
 - **The top bar's colour while Isle is off**, from see-through to black.
 - **Optional additions to Isle**, made while it runs and never to its files.
@@ -96,6 +100,19 @@ Open the Extensions app, find **Panel Island**, and click the settings button. S
 - **Keep GNOME's Activities button** — Shown even when another extension hides it, such as O-tiling's workspace
   numbers, so both sit side by side.
 - **Flat buttons** — No shading on a button under the pointer or pressed.
+
+### Workspaces
+
+In the left capsule.
+
+- **Workspace peek** — Rest the pointer on GNOME's Activities button or another extension's workspace numbers: the
+  capsule grows into glass with a live preview of each workspace, the one shown outlined in your accent colour. Click
+  a preview to go there, or drag a window from one preview onto another to move it. It closes as the pointer leaves
+  it, or as a menu or the overview opens.
+- **Peek delay** — How long the pointer rests before it opens.
+- **Attention glow** — While a window on another workspace asks for attention (a new message, a finished task), the
+  capsule's edge glows in your accent colour, and that workspace's preview glows in the peek. It stops once you go
+  there or the window stops asking.
 
 ### Top Bar
 

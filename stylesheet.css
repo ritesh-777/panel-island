@@ -185,3 +185,23 @@
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
   icon-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
 }
+
+/* Settings → Workspace peek (peek.js): each workspace's preview, framed; the one shown in the accent colour, one
+   wanting attention glowing in it. */
+.panel-island-peek-workspace {
+    border-radius: 8px;
+}
+.panel-island-peek-frame {
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.panel-island-peek-frame.panel-island-peek-current {
+    border: 2px solid -st-accent-color;
+}
+.panel-island-peek-frame.panel-island-peek-urgent {
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    box-shadow: inset 0 0 10px 2px -st-accent-color;
+}
+.panel-island-peek-frame.panel-island-peek-current.panel-island-peek-urgent {
+    border: 2px solid -st-accent-color;
+}

@@ -9,6 +9,22 @@
       <default>true</default>
       <summary>Capsule round the bar's right items</summary>
     </key>
+    <key name="workspace-peek" type="b">
+      <default>true</default>
+      <summary>Workspace peek</summary>
+      <description>The pointer resting on the left capsule's workspace buttons grows it into glass with a live preview of each workspace: click one to go there, drag a window onto one to move it there.</description>
+    </key>
+    <key name="peek-delay" type="i">
+      <range min="100" max="2000"/>
+      <default>400</default>
+      <summary>Workspace peek delay</summary>
+      <description>How long the pointer rests on a workspace button before the peek opens, in milliseconds.</description>
+    </key>
+    <key name="attention-glow" type="b">
+      <default>true</default>
+      <summary>Attention glow</summary>
+      <description>The left capsule's edge glows in the accent colour while a window on another workspace asks for attention.</description>
+    </key>
     <key name="keep-activities" type="b">
       <default>false</default>
       <summary>Keep GNOME's Activities button</summary>

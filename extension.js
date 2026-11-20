@@ -21,6 +21,8 @@ import {ExtensionState} from 'resource:///org/gnome/shell/misc/extensionUtils.js
 import {migrate} from './migrate.js';
 import {keepBar, setBar} from './topBar.js';
 import {keepActivities} from './activities.js';
+import {Attention} from './attention.js';
+import {Peek} from './peek.js';
 import {keepInOverview, releaseOverview, setIsleBehaviour} from './overview.js';
 import {setIsleSolidEdge, smoothIsleCorners} from './isleCorners.js';
 import {addIsleWeather} from './isleWeather.js';
@@ -65,6 +67,16 @@ const LEAVE_SLACK = 6;
 const PIN_WINDOW_MS = 1500;
 /** Room kept round the glass's path, for the overshoot, in CSS px. */
 const PATH_MARGIN = 40;
+
+/** The system's accent colour as RGB in 0..1 (GNOME's Appearance settings), or GNOME's blue. */
+function accent() {
+    try {
+        const [color] = St.ThemeContext.get_for_stage(global.stage).get_accent_color();
+        return [color.red / 255, color.green / 255, color.blue / 255];
+    } catch {
+        return [0.21, 0.52, 0.89];
+    }
+}
 
 /** Whether Isle is installed and on now. */
 const isleRunning = () => {
@@ -134,6 +146,8 @@ class Glass {
         this.fill.connect('repaint', area => this._paint(area));
         this.actor.add_child(this.fill);
         this._look = {fill: FALLBACK_FILL, edge: PILL_EDGE, blur: null};
+        /** Settings → Attention glow: its edge lit in this colour (RGB), or null. */
+        this._attention = null;
         this._shape = null;
         this._shapeKey = null;
         this._area = null;
@@ -172,6 +186,25 @@ class Glass {
             cr.setSourceRGBA(fill[0], fill[1], fill[2], fill[3]);
             outline(cr, ox, oy, w, h, corners, flares, cuts);
             cr.fill();
+            // A workspace wants attention: the edge lit inside the outline, a crisp line and a soft glow within it,
+            // following every corner (not along the screen's edges).
+            if (this._attention) {
+                const [r, g, b] = this._attention;
+                cr.save();
+                const x0 = flush[3] ? ox + 1 : 0, y0 = flush[0] ? oy + 1 : 0;
+                const x1 = flush[1] ? ox + w - 1 : outerWidth, y1 = flush[2] ? oy + h - 1 : outerHeight;
+                cr.rectangle(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
+                cr.clip();
+                outline(cr, ox, oy, w, h, corners, flares, cuts);
+                cr.clip();
+                for (const [width, alpha] of [[8, 0.22], [5, 0.35], [3, 0.95]]) {
+                    cr.setSourceRGBA(r, g, b, alpha);
+                    cr.setLineWidth(width);
+                    outline(cr, ox, oy, w, h, corners, flares, cuts);
+                    cr.stroke();
+                }
+                cr.restore();
+            }
             // A floating shape stands apart from what is behind it: a hairline round it on black too, as Isle's pill
             // (one hanging from the top of the screen has none, as Isle's notch).
             const edge = themeEdge ?? (flush[0] ? null : PILL_EDGE);
@@ -289,6 +322,12 @@ class Glass {
         }
         this._mask?.setUniforms({corners: shape.corners, flares: shape.flares, cuts: shape.cuts, flush: shape.flush,
             evenRim: this._look.evenRim ? 1 : 0, wholeAlpha: this._look.solidEdge ? 1 : 0});
+    }
+
+    /** Settings → Attention glow: lights its edge in `rgb`, or with null puts it out. */
+    setAttention(rgb) {
+        this._attention = rgb;
+        this.fill.queue_repaint();
     }
 
     destroy() {
@@ -582,6 +621,37 @@ export default class PanelIslandExtension extends Extension {
         // Above the capsules: a menu's glass leaves its button over them.
         this._morph = new Morph(GlassBackdrop, Mask);
         this._container.add_child(this._morph.actor);
+        // Settings → Workspace peek: a glass of its own, growing out of the left capsule (peek.js).
+        this._peekGlass = new Morph(GlassBackdrop, Mask);
+        this._container.add_child(this._peekGlass.actor);
+        const left = () => this._capsules?.[0];
+        this._peek = new Peek({
+            glass: this._peekGlass,
+            restRect: () => left()?.enabled && left().rect ? left().rect : null,
+            openShape: rect => {
+                const c = left().rect;
+                return this._shape(Main.panel._leftBox, Math.min(rect.x, c.x),
+                    Math.max(rect.x + rect.width, c.x + c.width), rect);
+            },
+            hold: on => {
+                if (on)
+                    this._hold(left());
+                else if (!this._active && this._heldCapsule === left())
+                    this._hold(null);
+            },
+            busy: () => Boolean(this._active) || this._morph.shown,
+            opening: () => ({ms: this._ms(OPEN_MS),
+                ease: this._settings.get_boolean('bounce') ? easeOutBack : easeOutCubic}),
+            closing: () => ({ms: this._ms(CLOSE_MS), ease: easeInOutCubic}),
+            delay: () => this._settings.get_int('peek-delay'),
+            closeDelay: () => this._settings.get_int('close-delay'),
+            urgent: () => this._attention?.urgent ?? new Set(),
+        });
+        // Settings → Attention glow: the left capsule's edge lit while a workspace wants attention (attention.js).
+        this._attention = new Attention(urgent => {
+            left()?.setAttention(urgent.size ? accent() : null);
+            this._peek?.setUrgent(urgent);
+        });
 
         this._watched = new Set();
         this._menus = new Map();
@@ -615,6 +685,8 @@ export default class PanelIslandExtension extends Extension {
             'changed::centre-capsule', () => this._applySides(),
             'changed::top-bar', () => this._applyBar(),
             'changed::keep-activities', () => this._applyActivities(),
+            'changed::workspace-peek', () => this._applyPeek(),
+            'changed::attention-glow', () => this._applyPeek(),
             'changed::top-bar-opacity', () => this._applyBar(),
             'changed::flat-buttons', () => this._applyFlat(),
             'changed::theme', () => this._applyTheme(),
@@ -653,9 +725,18 @@ export default class PanelIslandExtension extends Extension {
         keepBar(true);
         this._applyBar();
         this._applyActivities();
+        this._applyPeek();
         // Logging in, the shell is still setting itself up as extensions start: the bar coloured again once it is done.
         if (Main.layoutManager._startingUp)
             Main.layoutManager.connectObject('startup-complete', () => this._applyBar(), this);
+    }
+
+    /** Settings → Workspace peek and Attention glow (peek.js, attention.js). */
+    _applyPeek() {
+        if (this._dead)
+            return;
+        this._peek.enabled = this._settings.get_boolean('workspace-peek');
+        this._attention.enabled = this._settings.get_boolean('attention-glow');
     }
 
     /** Settings → Keep GNOME's Activities button (activities.js). */
@@ -752,6 +833,12 @@ export default class PanelIslandExtension extends Extension {
         this._restores.forEach(id => GLib.source_remove(id));
         this._restores.clear();
         this._active = null;
+        try {
+            this._peek?.destroy();
+            this._attention?.destroy();
+        } catch (e) {
+            console.warn(`[panel-island] Workspace peek not stopped cleanly: ${e}`);
+        }
     }
 
     /** Follows every item in both boxes: one that resizes, shows or hides moves the capsule's ends. */
@@ -768,6 +855,7 @@ export default class PanelIslandExtension extends Extension {
             }
         }
         this._watchMenus();
+        this._peek?.watchTriggers();
         this._queue();
     }
 
@@ -1222,6 +1310,8 @@ export default class PanelIslandExtension extends Extension {
 
     _opened(menu, button) {
         this._cancelHoverOpen();
+        // A menu opening takes the glass: the workspace peek goes at once.
+        this._peek?.close(true);
         if (this._dead)
             return;
         if (!this._sideOn(button)) {
@@ -1363,6 +1453,7 @@ export default class PanelIslandExtension extends Extension {
         const look = this._look();
         this._capsules.forEach(capsule => capsule.setLook(look));
         this._morph.setLook(look);
+        this._peekGlass?.setLook(look);
         if (this._morph.shown && this._morph.rect)
             this._morph.retarget(this._morph.rect);
         this._queue();
@@ -1411,6 +1502,7 @@ export default class PanelIslandExtension extends Extension {
             this._settings?.disconnectObject(this);
             this._settings = null;
             this._menus?.clear();
+            this._peek = this._attention = this._peekGlass = null;
             this._capsules = this._morph = this._container = this._isleSettings = this._theme = null;
             return;
         }
@@ -1448,6 +1540,12 @@ export default class PanelIslandExtension extends Extension {
         }
         this._menus?.clear();
         this._active = null;
+        this._peek?.destroy();
+        this._peek = null;
+        this._attention?.destroy();
+        this._attention = null;
+        this._peekGlass?.destroy();
+        this._peekGlass = null;
         this._morph?.destroy();
         this._morph = null;
         this._capsules?.forEach(capsule => capsule.destroy());
