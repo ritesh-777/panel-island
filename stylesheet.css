@@ -251,3 +251,23 @@
     color: #ffffff;
     background-color: rgba(255, 255, 255, 0.3);
 }
+
+/* A window or app dragged between two previews: the plus a new workspace is made at, dropped there. */
+.panel-island-peek-plus {
+    border-radius: 99px;
+    background-color: -st-accent-color;
+    box-shadow: 0 0 10px 1px rgba(0, 0, 0, 0.35);
+}
+.panel-island-peek-plus-icon {
+    icon-size: 16px;
+    color: #ffffff;
+}
+
+/* The thin line between GNOME's Activities button (its workspace dots) and Panel Island's numbers. */
+.panel-island-ws-separator {
+    width: 1px;
+    height: 14px;
+    border-radius: 1px;
+    margin: 0 8px 0 4px;
+    background-color: rgba(255, 255, 255, 0.22);
+}

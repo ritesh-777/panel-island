@@ -13,6 +13,7 @@
 
 import Clutter from 'gi://Clutter';
 import Graphene from 'gi://Graphene';
+import Meta from 'gi://Meta';
 import GLib from 'gi://GLib';
 import St from 'gi://St';
 
@@ -27,6 +28,12 @@ const PAD = 12;
 const SPACING = 10;
 /** Room kept between the previews and the screen's sides, in CSS px. */
 const MARGIN = 12;
+/** How far the previews part either side of a gap a window is dragged into, for its plus, in CSS px; and the plus's
+ * size. */
+const PART = 16;
+/** How long the pointer rests on a preview before its windows spread apart, in ms. */
+const SPREAD_DWELL_MS = 300;
+const PLUS = 28;
 /** The glass's corners round the previews, in CSS px. */
 const RADIUS = 18;
 /** How often the pointer is looked for while it is open, in ms, and how near the glass still counts as on it. */
@@ -34,6 +41,9 @@ const LEAVE_CHECK_MS = 60;
 const LEAVE_SLACK = 6;
 
 const scale = () => St.ThemeContext.get_for_stage(global.stage).scale_factor;
+const animating = () => St.Settings.get().enable_animations;
+/** The pointer's stage position, [x, y] alone (`global.get_pointer` also gives the buttons held). */
+const pointer = () => global.get_pointer().slice(0, 2);
 
 /** Whether the stage point `x`, `y` is within `actor` grown by `slack` on each side. */
 function within(actor, x, y, slack = 0) {
@@ -189,25 +199,69 @@ export class Peek {
         }
         const rest = this._host.restRect();
         const old = this._content, items = this._items;
+        // Where each workspace's preview was, to move from.
+        const was = new Map(items.map(({workspace, item}) => [workspace, old.x + item.x]));
         this._content = null;
         this._items = [];
-        this._dropContent(old, items);
         const box = rest ? this._build(rest) : null;
         if (!box) {
+            this._dropContent(old, items);
             this.close(true, 'it could not be laid out anew');
             return;
         }
         this._content.opacity = 255;
-        this._host.glass.retarget(this._host.openShape(box));
+        const glass = this._host.glass;
+        const to = this._host.openShape(box);
+        if (!animating()) {
+            this._dropContent(old, items);
+            glass.retarget(to);
+            return;
+        }
+        // Alive, not rebuilt: the glass grows or shrinks to fit; each preview still there slides from where it was;
+        // a new workspace's grows in; one gone fades and shrinks away where it was.
+        glass.animate(glass.rect ?? to, to, {ms: 340, ease: t => 1 - (1 - t) ** 3});
+        const slide = {duration: 340, mode: Clutter.AnimationMode.EASE_OUT_CUBIC};
+        const kept = new Set();
+        for (const {workspace, item} of this._items) {
+            if (was.has(workspace)) {
+                kept.add(workspace);
+                item.translation_x = was.get(workspace) - (this._content.x + item.x);
+                item.ease({translation_x: 0, ...slide});
+            } else {
+                item.set({opacity: 0, scale_x: 0.6, scale_y: 0.6});
+                item.ease({opacity: 255, scale_x: 1, scale_y: 1, delay: 120, duration: 320,
+                    mode: Clutter.AnimationMode.EASE_OUT_BACK});
+            }
+        }
+        // The old previews: those kept hidden at once (their new ones slide), those gone fading out.
+        old.reactive = false;
+        for (const {workspace, item} of items) {
+            if (kept.has(workspace))
+                item.opacity = 0;
+            else
+                item.ease({opacity: 0, scale_x: 0.6, scale_y: 0.6, duration: 240, mode: Clutter.AnimationMode.EASE_IN_QUAD});
+        }
+        old.get_children().forEach(child => {
+            if (!items.some(({item}) => item === child))
+                child.opacity = 0;
+        });
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 280, () => {
+            this._dropContent(old, items, false);
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
-    _dropContent(content, items) {
-        if (this._refresh)
+    _dropContent(content, items, current = true) {
+        if (current && this._refresh) {
             GLib.source_remove(this._refresh);
-        this._refresh = 0;
-        items.forEach(({workspace, background}) => {
-            workspace.disconnectObject(content);
-            background.destroy();
+            this._refresh = 0;
+        }
+        items.forEach(entry => {
+            entry.workspace.disconnectObject(content);
+            entry.background.destroy();
+            if (entry.dwell)
+                GLib.source_remove(entry.dwell);
+            entry.dwell = 0;
         });
         Main.layoutManager.removeChrome(content);
         content.destroy();
@@ -222,13 +276,15 @@ export class Peek {
         const workArea = Main.layoutManager.getWorkAreaForMonitor(monitor.index);
         const manager = global.workspace_manager;
         const n = manager.n_workspaces;
-        const pad = PAD * s, spacing = SPACING * s, margin = MARGIN * s;
+        const pad = PAD * s, spacing = SPACING * s, margin = MARGIN * s, part = PART * s;
+        // Room at the sides for the previews to part into (a plus before the first one).
+        const padX = pad + part;
         // As wide as it fits on the screen: smaller previews with many workspaces.
-        const room = monitor.width - 2 * margin - 2 * pad - (n - 1) * spacing;
+        const room = monitor.width - 2 * margin - 2 * padX - (n - 1) * spacing;
         const width = Math.max(48 * s, Math.min(THUMB_WIDTH * s, room / n));
         const k = width / workArea.width;
         const height = workArea.height * k;
-        const contentWidth = 2 * pad + n * width + (n - 1) * spacing;
+        const contentWidth = 2 * padX + n * width + (n - 1) * spacing;
         const contentHeight = 2 * pad + height;
         const x = Math.round(Math.max(monitor.x + margin, Math.min(rest.x, monitor.x + monitor.width - margin - contentWidth)));
         const y = Math.round(rest.y + rest.height + 4 * s);
@@ -240,7 +296,7 @@ export class Peek {
             const item = new St.Widget({
                 style_class: 'panel-island-peek-workspace', reactive: true, clip_to_allocation: true,
                 track_hover: true, pivot_point: new Graphene.Point({x: 0.5, y: 0.5}),
-                x: Math.round(pad + i * (width + spacing)), y: Math.round(pad),
+                x: Math.round(padX + i * (width + spacing)), y: Math.round(pad),
                 width: Math.round(width), height: Math.round(height),
             });
             // The wallpaper, as the screen shows it under this workspace's windows.
@@ -267,18 +323,37 @@ export class Peek {
             // A window dragged from a preview goes where it is let go on this one: onto this workspace (its own too,
             // moved there); an app opens a new window here, as onto the overview's.
             item._delegate = {
-                handleDragOver: (source, actor, _x, _y, time) => source?.metaWindow
-                    ? DND.DragMotionResult.MOVE_DROP
-                    : entry.thumbnail.handleDragOverInternal(source, actor, time),
-                acceptDrop: (source, actor, _x, _y, time) => source?.metaWindow
-                    ? this.dropWindow(source.metaWindow, ...global.get_pointer())
-                    : entry.thumbnail.acceptDropInternal(source, actor, time),
+                handleDragOver: (source, actor, _x, _y, time) => this._gapUnderPointer() !== null
+                    ? this._gapDragOver(source)
+                    : source?.metaWindow
+                        ? DND.DragMotionResult.MOVE_DROP
+                        : entry.thumbnail.handleDragOverInternal(source, actor, time),
+                acceptDrop: (source, actor, _x, _y, time) => this._gapUnderPointer() !== null
+                    ? this._dropInGap(source, this._gapUnderPointer(), actor)
+                    : source?.metaWindow
+                        ? this.dropWindow(source.metaWindow, ...pointer(), actor)
+                        : entry.thumbnail.acceptDropInternal(source, actor, time),
             };
-            // Lifted a little under the pointer.
-            item.connect('notify::hover', () => item.ease({
-                scale_x: item.hover ? 1.04 : 1, scale_y: item.hover ? 1.04 : 1,
-                duration: 150, mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-            }));
+            // Lifted a little under the pointer; resting there a moment, its windows spread apart (`_spread`).
+            item.connect('notify::hover', () => {
+                item.ease({
+                    scale_x: item.hover ? 1.04 : 1, scale_y: item.hover ? 1.04 : 1,
+                    duration: 150, mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                });
+                if (entry.dwell)
+                    GLib.source_remove(entry.dwell);
+                entry.dwell = 0;
+                if (!item.hover) {
+                    this._spread(entry, false);
+                    return;
+                }
+                entry.dwell = GLib.timeout_add(GLib.PRIORITY_DEFAULT, SPREAD_DWELL_MS, () => {
+                    entry.dwell = 0;
+                    if (item.hover && !this._busyDragging())
+                        this._spread(entry, true);
+                    return GLib.SOURCE_REMOVE;
+                });
+            });
             // A click goes there (and the peek has done its job), but not the click that ends a drag onto it.
             const click = new Clutter.ClickGesture();
             click.connect('recognize', () => {
@@ -296,9 +371,38 @@ export class Peek {
             entry.frame = frame;
             this._items.push(entry);
             // A window coming or going (moved here or away, opened, closed): its preview made anew.
-            workspace.connectObject('window-added', () => this._queueRefresh(),
-                'window-removed', () => this._queueRefresh(), this._content);
+            workspace.connectObject('window-added', () => this._queueRefresh(workspace),
+                'window-removed', () => this._queueRefresh(workspace), this._content);
         }
+        // The gaps a dragged window or app can be let go in, for a new workspace there: before the first preview and
+        // between each two (after the last, GNOME's dynamic workspaces keep an empty one already). Each gets a plus
+        // that grows as something is dragged into it, the previews parting round it.
+        this._gaps = [];
+        if (Meta.prefs_get_dynamic_workspaces()) {
+            for (let g = 0; g < n; g++) {
+                const centre = padX + g * (width + spacing) - spacing / 2;
+                const plus = new St.Widget({
+                    style_class: 'panel-island-peek-plus', width: Math.round(PLUS * s), height: Math.round(PLUS * s),
+                    x: Math.round(centre - PLUS * s / 2), y: Math.round(pad + height / 2 - PLUS * s / 2),
+                    opacity: 0, scale_x: 0.3, scale_y: 0.3, pivot_point: new Graphene.Point({x: 0.5, y: 0.5}),
+                    layout_manager: new Clutter.BinLayout(),
+                });
+                plus.add_child(new St.Icon({icon_name: 'list-add-symbolic', style_class: 'panel-island-peek-plus-icon',
+                    x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER}));
+                this._content.add_child(plus);
+                // Where it counts as in the gap: its middle, reaching a little into the previews either side.
+                this._gaps.push({index: g, plus, from: centre - spacing / 2 - part, to: centre + spacing / 2 + part,
+                    top: pad, bottom: pad + height});
+            }
+        }
+        this._hotGap = null;
+        // A drop on the glass between previews (not on one): into the gap there, if any.
+        this._content._delegate = {
+            handleDragOver: source => this._gapUnderPointer() !== null
+                ? this._gapDragOver(source) : DND.DragMotionResult.CONTINUE,
+            acceptDrop: (source, actor) => this._gapUnderPointer() !== null &&
+                this._dropInGap(source, this._gapUnderPointer(), actor),
+        };
         Main.layoutManager.addTopChrome(this._content);
         return {x, y, width: contentWidth, height: contentHeight, radius: RADIUS * s};
     }
@@ -311,18 +415,116 @@ export class Peek {
     }
 
     /** `entry`'s live preview of its workspace's windows (GNOME's own), over its wallpaper, under its frame. */
-    _thumbnail(entry) {
-        entry.thumbnail?.destroy();
+    _thumbnail(entry, fade = false) {
+        const old = entry.thumbnail;
         const thumbnail = new WorkspaceThumbnail(entry.workspace, entry.monitorIndex);
         thumbnail.setScale(entry.k, entry.k);
         thumbnail.set_size(entry.width, entry.height);
-        entry.item.insert_child_above(thumbnail, entry.wallpaper);
+        entry.item.insert_child_above(thumbnail, old ?? entry.wallpaper);
         entry.thumbnail = thumbnail;
+        // A window dragged out of it and let go on a preview is not flown back where it came from (GNOME's own
+        // drag puts it back, then it vanishes): it settles into its new place instead (`_settle`).
+        // A click on a window in it goes to that window itself (not only its workspace).
+        const unrestored = actor => {
+            if (actor?._draggable)
+                actor._draggable._restoreOnSuccess = false;
+            if (actor?.metaWindow && !actor._panelIslandPick) {
+                actor._panelIslandPick = true;
+                actor.connect('selected', () => {
+                    this._pickedAt = Date.now();
+                    Main.activateWindow(actor.metaWindow);
+                    this.close(false, 'a window was picked');
+                });
+            }
+        };
+        thumbnail._contents?.get_children().forEach(unrestored);
+        thumbnail._contents?.connect('child-added', (_contents, actor) => {
+            unrestored(actor);
+            if (entry.spread)
+                this._spread(entry, true, false);
+        });
+        if (entry.spread)
+            this._spread(entry, true, false);
+        if (!old)
+            return;
+        // Made anew: the new one fades in over the old, which then goes.
+        if (!fade || !animating()) {
+            old.destroy();
+            return;
+        }
+        thumbnail.opacity = 0;
+        thumbnail.ease({opacity: 255, duration: 220, mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onStopped: () => old.destroy()});
+    }
+
+    /** `entry`'s windows spread apart in its preview (`on`), so one hidden behind another can be taken too: laid out
+     * in a grid, each as big as its cell lets it be, in the order they stand from left to right; or put back where they
+     * really are. Only their copies move: the windows themselves stay. */
+    _spread(entry, on, animate = true) {
+        entry.spread = on;
+        const clones = (entry.thumbnail?._windows ?? []).filter(clone => !clone.inDrag && clone.get_parent());
+        const ease = (clone, to) => {
+            clone.set_pivot_point(0, 0);
+            if (animate && animating())
+                clone.ease({...to, duration: 240, mode: Clutter.AnimationMode.EASE_OUT_QUAD});
+            else
+                clone.set(to);
+        };
+        if (!on || clones.length < 2) {
+            clones.forEach(clone => ease(clone, {translation_x: 0, translation_y: 0, scale_x: 1, scale_y: 1}));
+            return;
+        }
+        const area = entry.workArea;
+        const n = clones.length;
+        const cols = Math.ceil(Math.sqrt(n * area.width / area.height / 1.6));
+        const rows = Math.ceil(n / cols);
+        const m = area.width * 0.04;
+        const cellW = (area.width - m * (cols + 1)) / cols, cellH = (area.height - m * (rows + 1)) / rows;
+        [...clones].sort((a, b) => (a.x + a.width / 2) - (b.x + b.width / 2)).forEach((clone, i) => {
+            const col = i % cols, row = Math.floor(i / cols);
+            const k = Math.min(1, cellW / Math.max(1, clone.width), cellH / Math.max(1, clone.height));
+            const x = area.x + m + col * (cellW + m) + (cellW - clone.width * k) / 2;
+            const y = area.y + m + row * (cellH + m) + (cellH - clone.height * k) / 2;
+            ease(clone, {translation_x: x - clone.x, translation_y: y - clone.y, scale_x: k, scale_y: k});
+        });
+    }
+
+    /** A copy of `window` from where `from` (what was dragged) is, gliding into place: to the stage point and scale
+     * `to` ({x, y, scale}), or, with none, shrinking away where it is. */
+    _settle(window, from, to) {
+        const source = window?.get_compositor_private();
+        if (!source || !(from instanceof Clutter.Actor) || !this._content || !animating())
+            return;
+        const [fx, fy] = from.get_transformed_position();
+        const [fw] = from.get_transformed_size();
+        const clone = new Clutter.Clone({source, reactive: false});
+        const k0 = fw / Math.max(1, source.width);
+        const [cx, cy] = this._content.get_transformed_position();
+        clone.set_position(fx - cx, fy - cy);
+        clone.set_scale(k0, k0);
+        this._content.add_child(clone);
+        const done = () => clone.destroy();
+        if (to) {
+            clone.ease({x: to.x - cx, y: to.y - cy, scale_x: to.scale, scale_y: to.scale, duration: 280,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD, onStopped: () => clone.ease({opacity: 0, duration: 160,
+                    mode: Clutter.AnimationMode.EASE_OUT_QUAD, onStopped: done})});
+        } else {
+            clone.set_pivot_point(0.5, 0.5);
+            clone.ease({opacity: 0, scale_x: k0 * 0.3, scale_y: k0 * 0.3, duration: 240,
+                mode: Clutter.AnimationMode.EASE_IN_QUAD, onStopped: done});
+        }
     }
 
     /** Every preview made anew, once its windows have settled. */
-    _queueRefresh() {
-        if (this._refresh || !this._open)
+    /** The previews of `workspace` (or with none, only which one is shown) made anew, once its windows have settled:
+     * only those whose windows changed, not all of them. */
+    _queueRefresh(workspace = null) {
+        if (!this._open)
+            return;
+        this._stale ??= new Set();
+        if (workspace)
+            this._stale.add(workspace);
+        if (this._refresh)
             return;
         this._refresh = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 120, () => {
             if (!this._open) {
@@ -333,8 +535,11 @@ export class Peek {
             if (this._busyDragging())
                 return GLib.SOURCE_CONTINUE;
             this._refresh = 0;
+            const stale = this._stale;
+            this._stale = new Set();
             this._items.forEach(entry => {
-                this._thumbnail(entry);
+                if (stale.has(entry.workspace))
+                    this._thumbnail(entry, true);
                 entry.workspace.active
                     ? entry.frame.add_style_class_name('panel-island-peek-current')
                     : entry.frame.remove_style_class_name('panel-island-peek-current');
@@ -345,7 +550,10 @@ export class Peek {
 
     /** `window` let go at the stage point `x`, `y`: on a preview, it goes to that workspace (if not on it already),
      * centred on the place in it the point stands for. Returns whether it was on one. */
-    dropWindow(window, x, y) {
+    dropWindow(window, x, y, dragged = null) {
+        const gap = this.gapAt(x, y);
+        if (gap !== null)
+            return this._dropInGap({metaWindow: window}, gap, dragged);
         const i = this.indexAt(x, y);
         if (i === null)
             return false;
@@ -361,10 +569,27 @@ export class Peek {
             if (window.is_maximized?.())
                 window.unmaximize();
             window.move_frame(true, nx, ny);
+            // What was dragged glides to where the window now is in this preview: only a look, so never in the way
+            // of the move itself.
+            try {
+                const actor = window.get_compositor_private();
+                if (actor && dragged) {
+                    const ax = nx + (actor.x - rect.x), ay = ny + (actor.y - rect.y);
+                    const point = entry.item.apply_transform_to_point(
+                        new Graphene.Point3D({x: (ax - area.x) * entry.k, y: (ay - area.y) * entry.k, z: 0}));
+                    this._settle(window, dragged, {x: point.x, y: point.y, scale: entry.k * entry.item.scale_x});
+                }
+            } catch (e) {
+                console.warn(`[panel-island] A dropped window did not glide into place: ${e}`);
+            }
         }
-        if (window.get_workspace()?.index() !== i)
+        // Its own workspace's preview made anew too (the copy dragged out of it is gone, even if the window stayed).
+        const from = window.get_workspace();
+        if (from?.index() !== i)
             Main.moveWindowToMonitorAndWorkspace(window, entry.monitorIndex, i);
-        this._queueRefresh();
+        if (from)
+            this._queueRefresh(from);
+        this._queueRefresh(entry.workspace);
         return true;
     }
 
@@ -378,10 +603,74 @@ export class Peek {
         return this._open && within(this._content, x, y);
     }
 
-    /** The workspace whose preview is at the stage point `x`, `y`, or null. */
+    /** The workspace whose preview is at the stage point `x`, `y` (not in a gap between them), or null. */
     indexAt(x, y) {
+        if (this.gapAt(x, y) !== null)
+            return null;
         const i = this._items.findIndex(({item}) => within(item, x, y));
         return i < 0 ? null : i;
+    }
+
+    /** The gap (the index a new workspace would have) at the stage point `x`, `y`, or null. */
+    gapAt(x, y) {
+        if (!this._open || !this._content || !this._gaps?.length)
+            return null;
+        const [ok, lx, ly] = this._content.transform_stage_point(x, y);
+        if (!ok)
+            return null;
+        const gap = this._gaps.find(g => lx >= g.from && lx <= g.to && ly >= g.top && ly <= g.bottom);
+        return gap ? gap.index : null;
+    }
+
+    _gapUnderPointer() {
+        return this.gapAt(...pointer());
+    }
+
+    /** What a drag's `source` would do let go in a gap: a window or an app that can open one go to a new workspace. */
+    _gapDragOver(source) {
+        if (source?.metaWindow)
+            return DND.DragMotionResult.MOVE_DROP;
+        if (source?.app?.can_open_new_window?.())
+            return DND.DragMotionResult.COPY_DROP;
+        return DND.DragMotionResult.CONTINUE;
+    }
+
+    /** A drag's `source` let go in the gap `index`: a new workspace made there (GNOME's own, as the overview makes
+     * one), the window moved to it or the app opened on it. Returns whether it was taken. */
+    _dropInGap(source, index, dragged = null) {
+        const window = source?.metaWindow;
+        const app = window ? null : source?.app;
+        if (!window && !app?.can_open_new_window?.())
+            return false;
+        // What was dragged shrinks into the plus; the new workspace grows in as the previews are laid out anew.
+        try {
+            if (window)
+                this._settle(window, dragged, null);
+        } catch (e) {
+            console.warn(`[panel-island] A dropped window did not shrink away: ${e}`);
+        }
+        this.setHotGap(null);
+        Main.wm.insertWorkspace(index);
+        if (window)
+            Main.moveWindowToMonitorAndWorkspace(window, this._items[0]?.monitorIndex ?? window.get_monitor(), index);
+        else
+            app.open_new_window(index);
+        return true;
+    }
+
+    /** The gap a dragged window or app is in (`index`): its plus grown, the previews parted round it; or none. */
+    setHotGap(index) {
+        if (this._hotGap === index || !this._content)
+            return;
+        this._hotGap = index;
+        const part = PART * scale();
+        const ease = {duration: 180, mode: Clutter.AnimationMode.EASE_OUT_QUAD};
+        this._items.forEach(({item}, i) => item.ease({
+            ...ease, translation_x: index === null ? 0 : i >= index ? part : -part,
+        }));
+        this._gaps.forEach(({index: g, plus}) => plus.ease(g === index
+            ? {opacity: 255, scale_x: 1, scale_y: 1, duration: 220, mode: Clutter.AnimationMode.EASE_OUT_BACK}
+            : {opacity: 0, scale_x: 0.3, scale_y: 0.3, ...ease}));
     }
 
     /** Marks the preview a dragged window would go to (`index`), or none. */
@@ -402,6 +691,8 @@ export class Peek {
                 py >= rect.y - slack && py <= rect.y + rect.height + slack;
             const onButton = [...this._triggers].some(button => within(button, px, py, slack));
             const dragging = this._dragging || this._host.dragging?.();
+            // Something dragged into a gap: its plus shown (any drag: a preview's window, an app, a carried one).
+            this.setHotGap(dragging ? this.gapAt(px, py) : null);
             if (onGlass || onButton || dragging || within(this._content, px, py, slack)) {
                 this._away = 0;
             } else {

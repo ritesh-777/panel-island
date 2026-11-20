@@ -209,7 +209,7 @@ export class DragToWorkspaces {
         const place = (x, y) => clone.set_position(Math.round(x - offset.x), Math.round(y - offset.y));
         Main.uiGroup.add_child(clone);
         Main.uiGroup.set_child_above_sibling(clone, null);
-        place(...global.get_pointer());
+        place(...global.get_pointer().slice(0, 2));
         const grab = Main.pushModal(clone, {actionMode: 0});
         this._carry = {window, clone, grab};
         this._syncCorner();
@@ -232,7 +232,7 @@ export class DragToWorkspaces {
         // The button already up (let go as the move was cancelled): dropped where it is.
         const [, , mods] = global.get_pointer();
         if (!(mods & Clutter.ModifierType.BUTTON1_MASK))
-            this._dropCarry(true, ...global.get_pointer());
+            this._dropCarry(true, ...global.get_pointer().slice(0, 2));
     }
 
     /** Lets the carried window go: where it is let go (`apply`, at `x`, `y`: on a preview, onto that workspace there;
@@ -244,9 +244,10 @@ export class DragToWorkspaces {
         this._carry = null;
         this._host.setHot(null);
         Main.popModal(carry.grab);
-        carry.clone.destroy();
+        // The copy glides into place from where it was let go (peek.js), then goes.
         if (apply && carry.window.get_compositor_private())
-            this._host.dropWindow(carry.window, x, y);
+            this._host.dropWindow(carry.window, x, y, carry.clone);
+        carry.clone.destroy();
         this._syncCorner();
     }
 
@@ -256,17 +257,19 @@ export class DragToWorkspaces {
         if (!this._enabled)
             return DND.DragMotionResult.CONTINUE;
         this._lastMotion = Date.now();
-        // Held while it lasts: let go once it has been still this long (a drag that ends).
+        // Held while it lasts: one timer for the whole drag (not one per motion), letting go once it has been still
+        // this long (a drag that ends).
         this._syncCorner();
-        if (this._dndTimer)
-            GLib.source_remove(this._dndTimer);
-        this._dndTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, DRAG_GONE_MS + 50, () => {
+        this._dndTimer ||= GLib.timeout_add(GLib.PRIORITY_DEFAULT, DRAG_GONE_MS / 2, () => {
+            if (this.active)
+                return GLib.SOURCE_CONTINUE;
             this._dndTimer = 0;
             this._syncCorner();
             return GLib.SOURCE_REMOVE;
         });
+        // Kept above the peek, restacked only if something went over it.
         const dragged = event.dragActor;
-        if (dragged?.get_parent() === Main.uiGroup)
+        if (dragged?.get_parent() === Main.uiGroup && Main.uiGroup.get_last_child() !== dragged)
             Main.uiGroup.set_child_above_sibling(dragged, null);
         if (this._host.overPill(event.x, event.y) && !this._host.peekShown()) {
             this._restingSince ||= Date.now();

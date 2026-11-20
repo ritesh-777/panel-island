@@ -727,8 +727,8 @@ export default class PanelIslandExtension extends Extension {
             closePeek: why => this._peek.close(false, why),
             peekShown: () => this._peek.shown,
             delay: () => this._settings.get_int('peek-delay'),
-            dropWindow: (window, x, y) => {
-                if (this._peek.dropWindow(window, x, y))
+            dropWindow: (window, x, y, dragged) => {
+                if (this._peek.dropWindow(window, x, y, dragged))
                     return;
                 const index = this._numbers.indexAt(x, y);
                 if (index !== null)

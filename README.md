@@ -116,7 +116,9 @@ In the left capsule.
   menu: the workspace peek opens. Let go on a preview or a number: the window moves to that workspace, back where it
   was on the screen, or the app opens a new window there. Once a dragged window is inside the peek, the peek takes the
   drag over from the compositor: the window goes back where it was, a small copy follows the pointer, and tiling
-  extensions (O-tiling, Tiling Assistant) no longer react to it. Esc cancels.
+  extensions (O-tiling, Tiling Assistant) no longer react to it. Esc cancels. Drag into the gap between two previews
+  (or before the first) and they part round an animated plus: let go there, and a new workspace is made in that place
+  for the window or app.
 - **Workspace peek** — Rest the pointer on GNOME's Activities button or another extension's workspace numbers: the
   capsule grows into glass with a live preview of each workspace, the one shown outlined in your accent colour. Click
   a preview to go there, or drag a window from one preview onto another to move it. It closes as the pointer leaves

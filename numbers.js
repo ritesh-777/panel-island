@@ -74,6 +74,8 @@ export class WorkspaceNumbers {
         if (!on) {
             this._unwatch();
             global.workspace_manager.disconnectObject(this);
+            Main.panel.statusArea.activities?.disconnectObject(this);
+            Main.panel.statusArea.activities?.container?.disconnectObject(this);
             this._button.destroy();
             this._button = this._box = null;
             this._numbers = [];
@@ -87,6 +89,10 @@ export class WorkspaceNumbers {
         Main.panel.addToStatusArea(NUMBERS_NAME, this._button, 1, 'left');
         global.workspace_manager.connectObject('notify::n-workspaces', () => this._build(),
             'active-workspace-changed', () => this._sync(), 'workspaces-reordered', () => this._build(), this);
+        // GNOME's Activities button shown or hidden (another extension hiding it, Panel Island keeping it): the dot
+        // before the numbers with it.
+        Main.panel.statusArea.activities?.connectObject('notify::visible', () => this._sync(), this);
+        Main.panel.statusArea.activities?.container?.connectObject('notify::visible', () => this._sync(), this);
         this._button.connect('destroy', () => {
             this._unwatch();
             global.workspace_manager.disconnectObject(this);
@@ -108,6 +114,10 @@ export class WorkspaceNumbers {
         this._unwatch();
         this._box.destroy_all_children();
         this._numbers = [];
+        // A thin line setting the numbers apart from GNOME's Activities button (its workspace dots) before them: a
+        // line, not a dot, so it reads as neither a workspace nor the accent; shown only while that button is.
+        this._separator = new St.Widget({style_class: 'panel-island-ws-separator', y_align: Clutter.ActorAlign.CENTER});
+        this._box.add_child(this._separator);
         const manager = global.workspace_manager;
         for (let i = 0; i < manager.n_workspaces; i++) {
             const workspace = manager.get_workspace_by_index(i);
@@ -130,6 +140,9 @@ export class WorkspaceNumbers {
 
     /** Each button's look: shown, holding windows, wanting attention, under a window being dragged. */
     _sync() {
+        const activities = Main.panel.statusArea.activities;
+        if (this._separator)
+            this._separator.visible = Boolean(activities?.visible && activities.container?.visible);
         const manager = global.workspace_manager;
         const urgent = this._urgent();
         this._numbers.forEach((number, i) => {
