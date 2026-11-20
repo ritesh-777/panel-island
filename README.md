@@ -34,6 +34,9 @@ Panel Island draws the whole bar itself.
   the screen's side, optionally matching your windows' corners.
 - **Workspace peek**: rest the pointer on the workspace buttons and the left capsule grows into glass with a live
   preview of each workspace. Click one to go there, or drag a window onto one to move it.
+- **Workspace numbers of its own**: one button per workspace in the left capsule, needing no other extension.
+- **Drag to workspaces**: hold a window by its title bar, or an app icon, over the left capsule and the peek opens;
+  let go on a workspace's preview or number to send it there.
 - **Attention glow**: the left capsule's edge glows in your accent colour while a window on another workspace asks
   for attention.
 - **Flat buttons**: no hover shading on the buttons in a capsule; the glass is the feedback.
@@ -105,6 +108,15 @@ Open the Extensions app, find **Panel Island**, and click the settings button. S
 
 In the left capsule.
 
+- **Workspace numbers** — Panel Island's own workspace buttons, one per workspace, needing no other extension. The
+  one shown is filled in your accent colour, ones holding windows are brighter than empty ones, and one wanting
+  attention is ringed in the accent colour. Click one to go there; drop a window or an app icon on one to send it
+  there. Off by default.
+- **Drag to workspaces** — Hold a window by its title bar over the left capsule, or an app icon from the dock or a
+  menu: the workspace peek opens. Let go on a preview or a number: the window moves to that workspace, back where it
+  was on the screen, or the app opens a new window there. Once a dragged window is inside the peek, the peek takes the
+  drag over from the compositor: the window goes back where it was, a small copy follows the pointer, and tiling
+  extensions (O-tiling, Tiling Assistant) no longer react to it. Esc cancels.
 - **Workspace peek** — Rest the pointer on GNOME's Activities button or another extension's workspace numbers: the
   capsule grows into glass with a live preview of each workspace, the one shown outlined in your accent colour. Click
   a preview to go there, or drag a window from one preview onto another to move it. It closes as the pointer leaves
@@ -113,6 +125,8 @@ In the left capsule.
 - **Attention glow** — While a window on another workspace asks for attention (a new message, a finished task), the
   capsule's edge glows in your accent colour, and that workspace's preview glows in the peek. It stops once you go
   there or the window stops asking.
+- **Glow width** — How wide its glowing line is (0.5 to 6 px).
+- **Pulse** — The glow slowly breathes in and out instead of staying lit.
 
 ### Top Bar
 

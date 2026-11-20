@@ -213,6 +213,10 @@ export default class PanelIslandPreferences extends ExtensionPreferences {
             title: 'Workspaces',
             description: 'In the left capsule.',
         });
+        workspaces.add(switchRow(settings, 'workspace-numbers', 'Workspace numbers',
+            'Panel Island\'s own, one per workspace. Click one to go there, drop a window or app icon on one'));
+        workspaces.add(switchRow(settings, 'drag-to-workspaces', 'Drag to workspaces',
+            'Hold a window by its title bar, or an app icon, over the capsule: the peek opens. Let go on a workspace to send it there'));
         workspaces.add(switchRow(settings, 'workspace-peek', 'Workspace peek',
             'Rest the pointer on the workspace buttons: a live preview of each workspace. Click one to go there, drag a window onto one to move it'));
         const peekDelay = spinRow(settings, 'peek-delay', 'Peek delay',
@@ -223,6 +227,14 @@ export default class PanelIslandPreferences extends ExtensionPreferences {
         workspaces.add(peekDelay);
         workspaces.add(switchRow(settings, 'attention-glow', 'Attention glow',
             'The capsule\'s edge glows while a window on another workspace asks for attention'));
+        const glowWidth = spinRow(settings, 'glow-width', 'Glow width',
+            'How wide its glowing line is, in px', {lower: 0.5, upper: 6, step: 0.5, digits: 1});
+        const glowPulse = switchRow(settings, 'attention-pulse', 'Pulse', 'The glow slowly breathes in and out');
+        const syncGlow = () => (glowWidth.sensitive = glowPulse.sensitive = settings.get_boolean('attention-glow'));
+        settings.connect('changed::attention-glow', syncGlow);
+        syncGlow();
+        workspaces.add(glowWidth);
+        workspaces.add(glowPulse);
         page.add(workspaces);
 
         const isle = new Adw.PreferencesGroup({

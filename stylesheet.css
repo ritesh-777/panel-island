@@ -205,3 +205,49 @@
 .panel-island-peek-frame.panel-island-peek-current.panel-island-peek-urgent {
     border: 2px solid -st-accent-color;
 }
+
+/* A window or app icon dragged over a preview: where it would go. */
+.panel-island-peek-frame.panel-island-peek-hot {
+    border: 2px solid rgba(255, 255, 255, 0.95);
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Settings → Workspace numbers (numbers.js): Panel Island's own, in the left capsule. Empty ones dim, ones holding
+   windows brighter, the one shown filled in the accent colour, one wanting attention ringed in it, one a window is
+   dragged onto lit. */
+.panel-island-ws {
+    spacing: 3px;
+}
+#panel .panel-button.panel-island-ws-button {
+    -natural-hpadding: 6px;
+    -minimum-hpadding: 4px;
+}
+.panel-island-ws-number {
+    min-width: 20px;
+    min-height: 20px;
+    padding: 0 6px;
+    border-radius: 99px;
+    font-size: 12px;
+    font-weight: bold;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.45);
+    transition-duration: 150ms;
+}
+.panel-island-ws-number.panel-island-ws-occupied {
+    color: rgba(255, 255, 255, 0.9);
+}
+.panel-island-ws-number:hover {
+    background-color: rgba(255, 255, 255, 0.14);
+}
+.panel-island-ws-number.panel-island-ws-current {
+    color: #ffffff;
+    background-color: -st-accent-color;
+}
+.panel-island-ws-number.panel-island-ws-urgent {
+    color: #ffffff;
+    box-shadow: inset 0 0 0 1px -st-accent-color;
+}
+.panel-island-ws-number.panel-island-ws-hot {
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.3);
+}

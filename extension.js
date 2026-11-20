@@ -23,6 +23,8 @@ import {keepBar, setBar} from './topBar.js';
 import {keepActivities} from './activities.js';
 import {Attention} from './attention.js';
 import {Peek} from './peek.js';
+import {WorkspaceNumbers, moveToWorkspace} from './numbers.js';
+import {DragToWorkspaces} from './drag.js';
 import {keepInOverview, releaseOverview, setIsleBehaviour} from './overview.js';
 import {setIsleSolidEdge, smoothIsleCorners} from './isleCorners.js';
 import {addIsleWeather} from './isleWeather.js';
@@ -146,8 +148,6 @@ class Glass {
         this.fill.connect('repaint', area => this._paint(area));
         this.actor.add_child(this.fill);
         this._look = {fill: FALLBACK_FILL, edge: PILL_EDGE, blur: null};
-        /** Settings → Attention glow: its edge lit in this colour (RGB), or null. */
-        this._attention = null;
         this._shape = null;
         this._shapeKey = null;
         this._area = null;
@@ -186,25 +186,6 @@ class Glass {
             cr.setSourceRGBA(fill[0], fill[1], fill[2], fill[3]);
             outline(cr, ox, oy, w, h, corners, flares, cuts);
             cr.fill();
-            // A workspace wants attention: the edge lit inside the outline, a crisp line and a soft glow within it,
-            // following every corner (not along the screen's edges).
-            if (this._attention) {
-                const [r, g, b] = this._attention;
-                cr.save();
-                const x0 = flush[3] ? ox + 1 : 0, y0 = flush[0] ? oy + 1 : 0;
-                const x1 = flush[1] ? ox + w - 1 : outerWidth, y1 = flush[2] ? oy + h - 1 : outerHeight;
-                cr.rectangle(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
-                cr.clip();
-                outline(cr, ox, oy, w, h, corners, flares, cuts);
-                cr.clip();
-                for (const [width, alpha] of [[8, 0.22], [5, 0.35], [3, 0.95]]) {
-                    cr.setSourceRGBA(r, g, b, alpha);
-                    cr.setLineWidth(width);
-                    outline(cr, ox, oy, w, h, corners, flares, cuts);
-                    cr.stroke();
-                }
-                cr.restore();
-            }
             // A floating shape stands apart from what is behind it: a hairline round it on black too, as Isle's pill
             // (one hanging from the top of the screen has none, as Isle's notch).
             const edge = themeEdge ?? (flush[0] ? null : PILL_EDGE);
@@ -324,12 +305,6 @@ class Glass {
             evenRim: this._look.evenRim ? 1 : 0, wholeAlpha: this._look.solidEdge ? 1 : 0});
     }
 
-    /** Settings → Attention glow: lights its edge in `rgb`, or with null puts it out. */
-    setAttention(rgb) {
-        this._attention = rgb;
-        this.fill.queue_repaint();
-    }
-
     destroy() {
         if (this.backdrop)
             this.backdrop.look = null;
@@ -358,6 +333,84 @@ class Capsule extends Glass {
         } catch (e) {
             console.warn(`[panel-island] Capsule drawn each time, not kept: ${e}`);
         }
+        /** Settings → Attention glow: its edge lit, on a layer of its own above it (added beside it, not in it, so
+         * its pulse fades that layer alone and the kept picture of the glass is not made anew each frame). */
+        this.glow = new St.DrawingArea({reactive: false, visible: false});
+        this.glow.connect('repaint', area => this._paintGlow(area));
+        /** {rgb, width (CSS px), pulse}, or null; and its breathing. */
+        this._glow = null;
+        this._pulse = null;
+    }
+
+    /** Lights its edge (`glow`: {rgb, width, pulse}), or with null puts it out. */
+    setAttention(glow) {
+        this._glow = glow;
+        this._stopPulse();
+        this.glow.opacity = 255;
+        this._syncGlow();
+        this.glow.queue_repaint();
+        // A slow breath, unless animations are off. A timeline of its own, not `ease`: an endless ease would keep
+        // fullscreen windows from being shown directly (it holds the compositor's unredirect off while it runs). Tied
+        // to the glow, it stands still while the glow is not on screen.
+        if (glow?.pulse && animating()) {
+            const timeline = this._pulse = new Clutter.Timeline({actor: this.glow, duration: 1100, repeat_count: -1,
+                auto_reverse: true, progress_mode: Clutter.AnimationMode.EASE_IN_OUT_SINE});
+            timeline.connect('new-frame', () => (this.glow.opacity = Math.round(255 - 195 * timeline.get_progress())));
+            timeline.start();
+        }
+    }
+
+    _stopPulse() {
+        if (!this._pulse)
+            return;
+        this._pulse.stop();
+        this._pulse.run_dispose();
+        this._pulse = null;
+    }
+
+    /** The glow over the capsule's glass, where it is, shown with it. */
+    _syncGlow() {
+        const on = Boolean(this._glow) && this.actor.visible && Boolean(this._shape);
+        this.glow.visible = on;
+        if (!on)
+            return;
+        this.glow.set_position(this.fill.x, this.fill.y);
+        this.glow.set_size(this.fill.width, this.fill.height);
+        const clip = this.actor.get_clip();
+        if (this.actor.has_clip)
+            this.glow.set_clip(clip[0] - this.fill.x, clip[1] - this.fill.y, clip[2], clip[3]);
+    }
+
+    /** The edge lit inside the outline, a crisp line and a soft glow within it, following every corner (not along
+     * the screen's edges). */
+    _paintGlow(area) {
+        const cr = area.get_context();
+        const shape = this._shape;
+        if (shape && this._glow) {
+            const {ox, oy, width: w, height: h, corners, flares, cuts, flush, outerWidth, outerHeight} = shape;
+            const [r, g, b] = this._glow.rgb;
+            // Stroked on the outline and cut to it: half of each line shows, inside.
+            const line = 2 * Math.max(0.25, this._glow.width) * scale();
+            const x0 = flush[3] ? ox + 1 : 0, y0 = flush[0] ? oy + 1 : 0;
+            const x1 = flush[1] ? ox + w - 1 : outerWidth, y1 = flush[2] ? oy + h - 1 : outerHeight;
+            cr.rectangle(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
+            cr.clip();
+            outline(cr, ox, oy, w, h, corners, flares, cuts);
+            cr.clip();
+            for (const [width, alpha] of [[line * 3, 0.16], [line * 1.8, 0.3], [line, 0.95]]) {
+                cr.setSourceRGBA(r, g, b, alpha);
+                cr.setLineWidth(width);
+                outline(cr, ox, oy, w, h, corners, flares, cuts);
+                cr.stroke();
+            }
+        }
+        cr.$dispose();
+    }
+
+    destroy() {
+        this._stopPulse();
+        this.glow.destroy();
+        super.destroy();
     }
 
     get enabled() {
@@ -398,10 +451,12 @@ class Capsule extends Glass {
         const panel = Main.panel;
         if (!extent || !panel.mapped || !this._enabled) {
             this.actor.hide();
+            this._syncGlow();
             return;
         }
         this.rect = this._shapeOf(extent);
         this.actor.visible = !this._held;
+        this._syncGlow();
         const key = JSON.stringify(this.rect);
         if (key !== this._key) {
             this._key = key;
@@ -410,6 +465,8 @@ class Capsule extends Glass {
             if (monitor)
                 this.actor.set_clip(monitor.x, monitor.y, monitor.width, monitor.height);
             this.place(this.rect);
+            this._syncGlow();
+            this.glow.queue_repaint();
         }
     }
 }
@@ -618,6 +675,8 @@ export default class PanelIslandExtension extends Extension {
         this._capsules = this._boxes.map(box => new Capsule(box, GlassBackdrop, Mask,
             extent => this._capsuleShape(box, extent)));
         this._capsules.forEach(capsule => this._container.add_child(capsule.actor));
+        // Each capsule's attention glow above all of them (see `Capsule.setAttention`).
+        this._capsules.forEach(capsule => this._container.add_child(capsule.glow));
         // Above the capsules: a menu's glass leaves its button over them.
         this._morph = new Morph(GlassBackdrop, Mask);
         this._container.add_child(this._morph.actor);
@@ -646,11 +705,41 @@ export default class PanelIslandExtension extends Extension {
             delay: () => this._settings.get_int('peek-delay'),
             closeDelay: () => this._settings.get_int('close-delay'),
             urgent: () => this._attention?.urgent ?? new Set(),
+            dragging: () => Boolean(this._drag?.active),
+        });
+        // Settings → Workspace numbers: Panel Island's own (numbers.js).
+        this._numbers = new WorkspaceNumbers(() => this._attention?.urgent ?? new Set());
+        // Settings → Drag to workspaces: a window or an app icon dragged onto a workspace (drag.js).
+        this._drag = new DragToWorkspaces({
+            overPill: (x, y) => {
+                const r = left()?.enabled ? left().rect : null;
+                const slack = 4 * scale();
+                return Boolean(r) && x >= r.x - slack && x <= r.x + r.width + slack &&
+                    y >= r.y - slack && y <= r.y + r.height + slack;
+            },
+            overPeek: (x, y) => this._peek.contains(x, y),
+            targetAt: (x, y) => this._numbers.indexAt(x, y) ?? this._peek.indexAt(x, y),
+            setHot: index => {
+                this._numbers?.setHot(index);
+                this._peek?.setHot(index);
+            },
+            openPeek: () => this._peek.open(),
+            closePeek: why => this._peek.close(false, why),
+            peekShown: () => this._peek.shown,
+            delay: () => this._settings.get_int('peek-delay'),
+            dropWindow: (window, x, y) => {
+                if (this._peek.dropWindow(window, x, y))
+                    return;
+                const index = this._numbers.indexAt(x, y);
+                if (index !== null)
+                    moveToWorkspace(window, index);
+            },
         });
         // Settings → Attention glow: the left capsule's edge lit while a workspace wants attention (attention.js).
         this._attention = new Attention(urgent => {
-            left()?.setAttention(urgent.size ? accent() : null);
+            this._applyGlow();
             this._peek?.setUrgent(urgent);
+            this._numbers?.setUrgent();
         });
 
         this._watched = new Set();
@@ -687,6 +776,10 @@ export default class PanelIslandExtension extends Extension {
             'changed::keep-activities', () => this._applyActivities(),
             'changed::workspace-peek', () => this._applyPeek(),
             'changed::attention-glow', () => this._applyPeek(),
+            'changed::workspace-numbers', () => this._applyPeek(),
+            'changed::drag-to-workspaces', () => this._applyPeek(),
+            'changed::glow-width', () => this._applyGlow(),
+            'changed::attention-pulse', () => this._applyGlow(),
             'changed::top-bar-opacity', () => this._applyBar(),
             'changed::flat-buttons', () => this._applyFlat(),
             'changed::theme', () => this._applyTheme(),
@@ -737,6 +830,20 @@ export default class PanelIslandExtension extends Extension {
             return;
         this._peek.enabled = this._settings.get_boolean('workspace-peek');
         this._attention.enabled = this._settings.get_boolean('attention-glow');
+        this._numbers.enabled = this._settings.get_boolean('workspace-numbers');
+        this._drag.enabled = this._settings.get_boolean('drag-to-workspaces');
+    }
+
+    /** The left capsule's edge lit while a workspace wants attention: Settings → Glow width and Pulse. */
+    _applyGlow() {
+        if (this._dead)
+            return;
+        const urgent = this._attention?.urgent;
+        this._capsules?.[0]?.setAttention(urgent?.size ? {
+            rgb: accent(),
+            width: this._settings.get_double('glow-width'),
+            pulse: this._settings.get_boolean('attention-pulse'),
+        } : null);
     }
 
     /** Settings → Keep GNOME's Activities button (activities.js). */
@@ -834,6 +941,7 @@ export default class PanelIslandExtension extends Extension {
         this._restores.clear();
         this._active = null;
         try {
+            this._drag?.destroy();
             this._peek?.destroy();
             this._attention?.destroy();
         } catch (e) {
@@ -1311,7 +1419,7 @@ export default class PanelIslandExtension extends Extension {
     _opened(menu, button) {
         this._cancelHoverOpen();
         // A menu opening takes the glass: the workspace peek goes at once.
-        this._peek?.close(true);
+        this._peek?.close(true, 'a menu opened');
         if (this._dead)
             return;
         if (!this._sideOn(button)) {
@@ -1502,7 +1610,7 @@ export default class PanelIslandExtension extends Extension {
             this._settings?.disconnectObject(this);
             this._settings = null;
             this._menus?.clear();
-            this._peek = this._attention = this._peekGlass = null;
+            this._peek = this._attention = this._peekGlass = this._numbers = this._drag = null;
             this._capsules = this._morph = this._container = this._isleSettings = this._theme = null;
             return;
         }
@@ -1540,6 +1648,10 @@ export default class PanelIslandExtension extends Extension {
         }
         this._menus?.clear();
         this._active = null;
+        this._drag?.destroy();
+        this._drag = null;
+        this._numbers?.destroy();
+        this._numbers = null;
         this._peek?.destroy();
         this._peek = null;
         this._attention?.destroy();
