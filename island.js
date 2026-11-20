@@ -74,7 +74,7 @@ export class IslandService {
         const glass = this._host.glass;
         const {ms, ease} = this._host.opening();
         glass.animate(glass.shown && glass.rect ? glass.rect : rest, this._target(actor) ?? rest,
-            {ms, ease, target: () => this._actor === actor ? this._target(actor) : null});
+            {ms, ease, target: () => this._actor === actor ? this._target(actor) : null, reveal: actor});
         this._host.hold(true);
         // Its size and place followed (results filling in, a scroll, its own opening motion).
         const follow = () => this._queueFollow();

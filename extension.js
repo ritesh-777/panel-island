@@ -540,6 +540,56 @@ class Morph extends Glass {
         }
         this.rect = rect;
         this.place(rect, this._pathArea);
+        this._clipReveal(rect);
+    }
+
+    /** While the glass grows round it, what it opens round (`reveal`: a menu, Island Menu's panel) shown only where
+     * the glass already is, as Isle's island shows its own: GNOME's menus come in at full size in a fraction of the
+     * time the glass takes to grow, and were seen spread out ahead of their glass. In its own pixels, through any
+     * slide or scale of its own; given back as it was once the glass has reached it. */
+    _clipReveal(rect) {
+        const actor = this._reveal;
+        if (!actor)
+            return;
+        try {
+            const [ax, ay] = actor.get_transformed_position();
+            const [tw, th] = actor.get_transformed_size();
+            const sx = actor.width > 0 ? tw / actor.width : 0, sy = actor.height > 0 ? th / actor.height : 0;
+            if (!(sx > 0 && sy > 0))
+                return;
+            actor.set_clip((rect.x - ax) / sx, (rect.y - ay) / sy, rect.width / sx, rect.height / sy);
+        } catch (e) {
+            console.warn(`[panel-island] Menu shown whole as its glass grows: ${e}`);
+            this._endReveal();
+        }
+    }
+
+    _startReveal(actor) {
+        this._endReveal();
+        if (!(actor instanceof Clutter.Actor))
+            return;
+        this._reveal = actor;
+        this._revealHad = actor.has_clip ? actor.get_clip() : null;
+        actor.connectObject('destroy', () => {
+            this._reveal = null;
+            this._revealHad = null;
+        }, this);
+    }
+
+    _endReveal() {
+        const actor = this._reveal;
+        if (!actor)
+            return;
+        this._reveal = null;
+        const had = this._revealHad;
+        this._revealHad = null;
+        try {
+            actor.disconnectObject(this);
+            if (had)
+                actor.set_clip(...had);
+            else
+                actor.remove_clip();
+        } catch {}
     }
 
     _stop() {
@@ -553,8 +603,9 @@ class Morph extends Glass {
 
     /** Moves from `from` to `to` over `ms` along `ease`; `fade` 'in' or 'out' brings its opacity with it. With
      * `target` (a function), where it goes is asked again every frame: a menu still being laid out or placed. */
-    animate(from, to, {ms, ease, fade = null, onDone = null, target = null}) {
+    animate(from, to, {ms, ease, fade = null, onDone = null, target = null, reveal = null}) {
         this._stop();
+        this._endReveal();
         this._from = from;
         this._to = to;
         this._target = target;
@@ -568,6 +619,7 @@ class Morph extends Glass {
         }
         const opacityAt = t => fade === 'in' ? Math.min(1, t / 0.2) : fade === 'out' ? Math.min(1, (1 - t) / 0.35) : 1;
         this.actor.opacity = Math.round(255 * opacityAt(0));
+        this._startReveal(reveal);
         this._draw(from);
         const timeline = this._timeline = new Clutter.Timeline({actor: this.actor, duration: ms});
         timeline.connect('new-frame', () => {
@@ -591,6 +643,7 @@ class Morph extends Glass {
             if (now && now.width > 0 && now.height > 0)
                 this._to = now;
             this._setPath(this._to, this._to);
+            this._endReveal();
             this._draw(this._to);
             onDone?.();
         });
@@ -607,12 +660,14 @@ class Morph extends Glass {
 
     hide() {
         this._stop();
+        this._endReveal();
         this._target = null;
         this.actor.hide();
     }
 
     destroy() {
         this._stop();
+        this._endReveal();
         super.destroy();
     }
 }
@@ -1546,7 +1601,7 @@ export default class PanelIslandExtension extends Extension {
                 const from = this._morph.shown && this._morph.rect ? this._morph.rect : this._restRect(button);
                 const target = () => this._active === menu ? this._openRect(menu, button) : null;
                 const ease = this._settings.get_boolean('bounce') ? easeOutBack : easeOutCubic;
-                this._morph.animate(from, to, {ms: this._ms(OPEN_MS), ease, target});
+                this._morph.animate(from, to, {ms: this._ms(OPEN_MS), ease, target, reveal: menu.actor});
                 // The glass is drawn where the capsule is: the capsule's own can go.
                 this._hold(this._capsuleOf(button));
             } else {
