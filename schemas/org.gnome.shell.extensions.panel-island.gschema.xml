@@ -12,39 +12,39 @@
     <key name="workspace-peek" type="b">
       <default>true</default>
       <summary>Workspace peek</summary>
-      <description>The pointer resting on the left capsule's workspace buttons grows it into glass with a live preview of each workspace: click one to go there, drag a window onto one to move it there.</description>
+      <description>Moved to Island Menu, which reads it once to keep your setting. The pointer resting on the left capsule's workspace buttons grows it into glass with a live preview of each workspace: click one to go there, drag a window onto one to move it there.</description>
     </key>
     <key name="workspace-numbers" type="b">
       <default>false</default>
       <summary>Workspace numbers</summary>
-      <description>Panel Island's own workspace buttons in the left capsule, one per workspace: click one to go there, drop a window or an app icon on one.</description>
+      <description>Moved to Island Menu, which reads it once to keep your setting. Panel Island's own workspace buttons in the left capsule, one per workspace: click one to go there, drop a window or an app icon on one.</description>
     </key>
     <key name="drag-to-workspaces" type="b">
       <default>true</default>
       <summary>Drag to workspaces</summary>
-      <description>A window moved by its title bar, or an app icon, held over the left capsule opens the workspace peek; let go on a preview or a number, it goes to that workspace.</description>
+      <description>Moved to Island Menu, which reads it once to keep your setting. A window moved by its title bar, or an app icon, held over the left capsule opens the workspace peek; let go on a preview or a number, it goes to that workspace.</description>
     </key>
     <key name="peek-delay" type="i">
       <range min="100" max="2000"/>
       <default>400</default>
       <summary>Workspace peek delay</summary>
-      <description>How long the pointer rests on a workspace button before the peek opens, in milliseconds.</description>
+      <description>Moved to Island Menu, which reads it once to keep your setting. How long the pointer rests on a workspace button before the peek opens, in milliseconds.</description>
     </key>
     <key name="attention-glow" type="b">
       <default>true</default>
       <summary>Attention glow</summary>
-      <description>The left capsule's edge glows in the accent colour while a window on another workspace asks for attention.</description>
+      <description>Moved to Island Menu, which reads it once to keep your setting. The left capsule's edge glows in the accent colour while a window on another workspace asks for attention.</description>
     </key>
     <key name="glow-width" type="d">
       <range min="0.5" max="6"/>
       <default>1</default>
       <summary>Attention glow width</summary>
-      <description>How wide the glowing line round the capsule is, in pixels; a soft glow reaches a little further in.</description>
+      <description>Moved to Island Menu, which reads it once to keep your setting. How wide the glowing line round the capsule is, in pixels; a soft glow reaches a little further in.</description>
     </key>
     <key name="attention-pulse" type="b">
       <default>true</default>
       <summary>Attention glow pulse</summary>
-      <description>The glow slowly breathes in and out instead of staying lit.</description>
+      <description>Moved to Island Menu, which reads it once to keep your setting. The glow slowly breathes in and out instead of staying lit.</description>
     </key>
     <key name="keep-activities" type="b">
       <default>false</default>
@@ -76,6 +76,26 @@
       <default>0</default>
       <summary>Top bar opacity</summary>
       <description>How black the top bar is while Isle is off, in %: 0 see-through, 100 black.</description>
+    </key>
+    <key name="switch-glass" type="s">
+      <choices>
+        <choice value="always"/>
+        <choice value="battery"/>
+        <choice value="never"/>
+      </choices>
+      <default>'always'</default>
+      <summary>Glass during workspace switches</summary>
+      <description>always: the glass held still as a workspace switch slides (it blurs again once it is over), much lighter on the CPU. battery: held still on battery only, live on mains. never: the glass follows the slide live.</description>
+    </key>
+    <key name="color-style" type="s">
+      <choices>
+        <choice value="auto"/>
+        <choice value="light"/>
+        <choice value="dark"/>
+      </choices>
+      <default>'auto'</default>
+      <summary>Style</summary>
+      <description>auto: light or dark as GNOME's own style is (Settings → Appearance). light: frosted light glass, dark text and icons. dark: the glass as Isle's. The menus opened on the capsules follow it too, whatever GNOME's own style.</description>
     </key>
     <key name="shape" type="s">
       <choices>
@@ -199,6 +219,11 @@
       <default>'fade'</default>
       <summary>Isle's glass at the screen's edge</summary>
       <description>With patch-isle-corners on (Isle's glass then cut by this extension's mask): "fade" as Isle draws it, its blur thinning into clear glass towards the screen's edge; "solid" as blurred up to the edge as anywhere.</description>
+    </key>
+    <key name="patch-isle-light" type="b">
+      <default>false</default>
+      <summary>Light Isle</summary>
+      <description>Isle's island light too when Panel Island's Style is light: its glass, fill, text and icons, done to Isle as it runs and never to its files. What Isle paints in code (rings, its bot) stays as Isle draws it.</description>
     </key>
     <key name="patch-isle-lighter" type="b">
       <default>false</default>

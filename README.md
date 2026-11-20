@@ -32,13 +32,12 @@ Panel Island draws the whole bar itself.
 - **Glass or black**, with glass strength, edge light and edge blur of its own.
 - **Edge to edge**: the side capsules can run to the screen's sides, their corners rounded, square or flaring down
   the screen's side, optionally matching your windows' corners.
-- **Workspace peek**: rest the pointer on the workspace buttons and the left capsule grows into glass with a live
-  preview of each workspace. Click one to go there, or drag a window onto one to move it.
-- **Workspace numbers of its own**: one button per workspace in the left capsule, needing no other extension.
-- **Drag to workspaces**: hold a window by its title bar, or an app icon, over the left capsule and the peek opens;
-  let go on a workspace's preview or number to send it there.
-- **Attention glow**: the left capsule's edge glows in your accent colour while a window on another workspace asks
-  for attention.
+- **Light or dark**: follows GNOME's style or is set on its own, and the bar's menus are drawn in the same style,
+  whatever GNOME's is.
+- **Light workspace switches**: the glass holds still while a workspace slides and blurs again once it stops, much
+  lighter on the CPU (or follows the slide live, if you prefer).
+- **A home for Island Menu's workspace features**: with [Island Menu](https://github.com/ritesh-777/island-menu), the
+  workspace peek, workspace numbers, drag to workspaces and the attention glow grow out of the left capsule.
 - **Flat buttons**: no hover shading on the buttons in a capsule; the glass is the feedback.
 - **The top bar's colour while Isle is off**, from see-through to black.
 - **Optional additions to Isle**, made while it runs and never to its files.
@@ -92,6 +91,8 @@ Open the Extensions app, find **Panel Island**, and click the settings button. S
 
 ### Capsules
 
+- **Style** — Follow GNOME, Light or Dark. The bar's menus opened on the glass (Quick Settings, the calendar) are drawn
+  in the same style, even when GNOME's own is the other one.
 - **Shape** — Pill (floating in the bar), Notch (joined to the top of the screen), or Like Isle.
 - **Look** — Glass, Black, or Like Isle.
 - **Glass as strong as Isle's** — Follows Isle's Glass tint. Off, **Glass strength** sets it here, from clear to
@@ -104,31 +105,18 @@ Open the Extensions app, find **Panel Island**, and click the settings button. S
   numbers, so both sit side by side.
 - **Flat buttons** — No shading on a button under the pointer or pressed.
 
+### Workspace Switches
+
+- **Glass during workspace switches** — **Still** (the default): the glass holds still while a workspace slides and
+  blurs again once it stops, much lighter on the CPU. **Still on battery**: still on battery, following the slide on
+  mains power. **Live**: follows the slide as it moves, smoothest and heaviest.
+
 ### Workspaces
 
-In the left capsule.
-
-- **Workspace numbers** — Panel Island's own workspace buttons, one per workspace, needing no other extension. The
-  one shown is filled in your accent colour, ones holding windows are brighter than empty ones, and one wanting
-  attention is ringed in the accent colour. Click one to go there; drop a window or an app icon on one to send it
-  there. Off by default.
-- **Drag to workspaces** — Hold a window by its title bar over the left capsule, or an app icon from the dock or a
-  menu: the workspace peek opens. Let go on a preview or a number: the window moves to that workspace, back where it
-  was on the screen, or the app opens a new window there. Once a dragged window is inside the peek, the peek takes the
-  drag over from the compositor: the window goes back where it was, a small copy follows the pointer, and tiling
-  extensions (O-tiling, Tiling Assistant) no longer react to it. Esc cancels. Drag into the gap between two previews
-  (or before the first) and they part round an animated plus: let go there, and a new workspace is made in that place
-  for the window or app.
-- **Workspace peek** — Rest the pointer on GNOME's Activities button or another extension's workspace numbers: the
-  capsule grows into glass with a live preview of each workspace, the one shown outlined in your accent colour. Click
-  a preview to go there, or drag a window from one preview onto another to move it. It closes as the pointer leaves
-  it, or as a menu or the overview opens.
-- **Peek delay** — How long the pointer rests before it opens.
-- **Attention glow** — While a window on another workspace asks for attention (a new message, a finished task), the
-  capsule's edge glows in your accent colour, and that workspace's preview glows in the peek. It stops once you go
-  there or the window stops asking.
-- **Glow width** — How wide its glowing line is (0.5 to 6 px).
-- **Pulse** — The glow slowly breathes in and out instead of staying lit.
+The workspace peek, workspace numbers, drag to workspaces and attention glow are now part of
+[Island Menu](https://github.com/ritesh-777/island-menu), and are set there. They are drawn on Panel Island's left
+capsule while both are on; Panel Island hands them its glass, and nothing else is needed. Settings you had for them
+here are carried over to Island Menu the first time it starts.
 
 ### Top Bar
 
@@ -165,6 +153,8 @@ The bar's colour while Isle is off. With Isle on, Isle colours the bar itself.
 
 Shown only with Isle installed. Each one changes Isle as it runs and never its files.
 
+- **Light Isle** — Isle's island light too when the Style above is light: its glass, text and icons, including Isle's
+  own white icons, drawn dark on the light glass.
 - **Keep Isle's glass in the overview** — Isle's island stays blurred in the overview and while switching
   workspaces, blurring what is really behind it.
 - **Lighter blur updates** — A window just below the bar, a video playing in it, no longer has Isle's glass blurred

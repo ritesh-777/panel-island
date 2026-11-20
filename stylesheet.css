@@ -2,6 +2,54 @@
    Copyright (C) 2026 Ritesh Seth
    Portions copyright (C) 2026 zickrian: the top bar's colour rules, from Isle's stylesheet */
 
+/* Settings → Style, light: dark text and icons on the light capsules, as GNOME's light style draws them
+   (its foreground, black at 80%), no shadow under them; each side only while its capsule is on and light. Marked
+   important, as the bar's white text (GNOME's own over a see-through bar, Isle's, Panel Island's own while Isle is off)
+   may otherwise win on order alone. Before the flat buttons' rules, which still win over the hover shading here. */
+#panel.panel-island-light-left #panelLeft .panel-button,
+#panel.panel-island-light-right #panelRight .panel-button,
+#panel.panel-island-light-centre #panelCenter .panel-button,
+#panel.panel-island-light-left #panelLeft .panel-button StLabel,
+#panel.panel-island-light-right #panelRight .panel-button StLabel,
+#panel.panel-island-light-centre #panelCenter .panel-button StLabel,
+#panel.panel-island-light-left #panelLeft .panel-button StIcon,
+#panel.panel-island-light-right #panelRight .panel-button StIcon,
+#panel.panel-island-light-centre #panelCenter .panel-button StIcon,
+#panel.panel-island-light-left:overview #panelLeft .panel-button,
+#panel.panel-island-light-right:overview #panelRight .panel-button,
+#panel.panel-island-light-centre:overview #panelCenter .panel-button,
+#panel.panel-island-light-left:overview #panelLeft .panel-button StLabel,
+#panel.panel-island-light-right:overview #panelRight .panel-button StLabel,
+#panel.panel-island-light-centre:overview #panelCenter .panel-button StLabel,
+#panel.panel-island-light-left:overview #panelLeft .panel-button StIcon,
+#panel.panel-island-light-right:overview #panelRight .panel-button StIcon,
+#panel.panel-island-light-centre:overview #panelCenter .panel-button StIcon {
+    color: rgba(0, 0, 0, 0.8) !important;
+    text-shadow: none !important;
+    icon-shadow: none !important;
+}
+#panel.panel-island-light-left #panelLeft .panel-button:hover,
+#panel.panel-island-light-right #panelRight .panel-button:hover,
+#panel.panel-island-light-centre #panelCenter .panel-button:hover,
+#panel.panel-island-light-left #panelLeft .panel-button:focus,
+#panel.panel-island-light-right #panelRight .panel-button:focus,
+#panel.panel-island-light-centre #panelCenter .panel-button:focus {
+    box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.08);
+}
+#panel.panel-island-light-left #panelLeft .panel-button:active,
+#panel.panel-island-light-right #panelRight .panel-button:active,
+#panel.panel-island-light-centre #panelCenter .panel-button:active,
+#panel.panel-island-light-left #panelLeft .panel-button:checked,
+#panel.panel-island-light-right #panelRight .panel-button:checked,
+#panel.panel-island-light-centre #panelCenter .panel-button:checked {
+    box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.14);
+}
+#panel.panel-island-light-left #panelLeft .panel-button .workspace-dot,
+#panel.panel-island-light-right #panelRight .panel-button .workspace-dot,
+#panel.panel-island-light-centre #panelCenter .panel-button .workspace-dot {
+    background-color: rgba(0, 0, 0, 0.8) !important;
+}
+
 /* No hover or pressed shading on the buttons in the capsules (the middle one's only while it is shown) (Settings → Flat buttons): the glass is the feedback.
    Two ids, so these win over GNOME's own #panel .panel-button:hover (and its :overview one). */
 #panel.panel-island-flat-left #panelLeft .panel-button,
@@ -87,14 +135,18 @@
 }
 
 /* A menu opened on the capsule's glass: no background of its own, the glass is. A class, not an inline style, so
-   an extension that rewrites its menu's style as it opens or closes (Quick Lofi) can't bring GNOME's back. */
-.popup-menu-content.panel-island-clear,
-.popup-menu-content.quick-settings.panel-island-clear {
+   an extension that rewrites its menu's style as it opens or closes (Quick Lofi) can't bring GNOME's back. These
+   rules start at the menu itself (its boxpointer; Quick Settings' is inside the actor holding the class) to stay above the menus' light or dark colours (menuScheme.js). */
+.popup-menu-boxpointer.panel-island-menu .popup-menu-content.panel-island-clear,
+.panel-island-menu .popup-menu-boxpointer .popup-menu-content.panel-island-clear,
+.popup-menu-boxpointer.panel-island-menu .popup-menu-content.quick-settings.panel-island-clear,
+.panel-island-menu .popup-menu-boxpointer .popup-menu-content.quick-settings.panel-island-clear {
     background-color: transparent;
     box-shadow: none;
     border-color: transparent;
 }
-.popup-menu-boxpointer.panel-island-menu {
+.popup-menu-boxpointer.panel-island-menu,
+.panel-island-menu .popup-menu-boxpointer {
     -arrow-background-color: transparent;
     -arrow-border-color: transparent;
     -arrow-border-width: 0;
@@ -186,88 +238,154 @@
   icon-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
 }
 
-/* Settings → Workspace peek (peek.js): each workspace's preview, framed; the one shown in the accent colour, one
-   wanting attention glowing in it. */
-.panel-island-peek-workspace {
-    border-radius: 8px;
-}
-.panel-island-peek-frame {
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-}
-.panel-island-peek-frame.panel-island-peek-current {
-    border: 2px solid -st-accent-color;
-}
-.panel-island-peek-frame.panel-island-peek-urgent {
-    border: 2px solid rgba(255, 255, 255, 0.9);
-    box-shadow: inset 0 0 10px 2px -st-accent-color;
-}
-.panel-island-peek-frame.panel-island-peek-current.panel-island-peek-urgent {
-    border: 2px solid -st-accent-color;
-}
 
-/* A window or app icon dragged over a preview: where it would go. */
-.panel-island-peek-frame.panel-island-peek-hot {
-    border: 2px solid rgba(255, 255, 255, 0.95);
-    background-color: rgba(255, 255, 255, 0.12);
+/* A menu on the glass: its toggles, round buttons and cards (Quick Settings' toggles and their opened menus, the
+   calendar's boxes, notifications) see-through over the glass instead of solid, so the blur behind shows through
+   each of them; GNOME's light or dark colours kept for their text, the accent colour for what is on. The menu's glass
+   is the one blur: these only stop covering it. */
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .quick-toggle,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .quick-toggle,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .quick-toggle-menu-button,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .quick-toggle-menu-button,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .icon-button,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .icon-button {
+    background-color: rgba(255, 255, 255, 0.10);
 }
-
-/* Settings → Workspace numbers (numbers.js): Panel Island's own, in the left capsule. Empty ones dim, ones holding
-   windows brighter, the one shown filled in the accent colour, one wanting attention ringed in it, one a window is
-   dragged onto lit. */
-.panel-island-ws {
-    spacing: 3px;
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .quick-toggle:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .quick-toggle:hover,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .quick-toggle-menu-button:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .quick-toggle-menu-button:hover,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .icon-button:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .icon-button:hover {
+    background-color: rgba(255, 255, 255, 0.16);
 }
-#panel .panel-button.panel-island-ws-button {
-    -natural-hpadding: 6px;
-    -minimum-hpadding: 4px;
-}
-.panel-island-ws-number {
-    min-width: 20px;
-    min-height: 20px;
-    padding: 0 6px;
-    border-radius: 99px;
-    font-size: 12px;
-    font-weight: bold;
-    text-align: center;
-    color: rgba(255, 255, 255, 0.45);
-    transition-duration: 150ms;
-}
-.panel-island-ws-number.panel-island-ws-occupied {
-    color: rgba(255, 255, 255, 0.9);
-}
-.panel-island-ws-number:hover {
-    background-color: rgba(255, 255, 255, 0.14);
-}
-.panel-island-ws-number.panel-island-ws-current {
-    color: #ffffff;
-    background-color: -st-accent-color;
-}
-.panel-island-ws-number.panel-island-ws-urgent {
-    color: #ffffff;
-    box-shadow: inset 0 0 0 1px -st-accent-color;
-}
-.panel-island-ws-number.panel-island-ws-hot {
-    color: #ffffff;
-    background-color: rgba(255, 255, 255, 0.3);
-}
-
-/* A window or app dragged between two previews: the plus a new workspace is made at, dropped there. */
-.panel-island-peek-plus {
-    border-radius: 99px;
-    background-color: -st-accent-color;
-    box-shadow: 0 0 10px 1px rgba(0, 0, 0, 0.35);
-}
-.panel-island-peek-plus-icon {
-    icon-size: 16px;
-    color: #ffffff;
-}
-
-/* The thin line between GNOME's Activities button (its workspace dots) and Panel Island's numbers. */
-.panel-island-ws-separator {
-    width: 1px;
-    height: 14px;
-    border-radius: 1px;
-    margin: 0 8px 0 4px;
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .quick-toggle:active,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .quick-toggle:active,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .quick-toggle-menu-button:active,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .quick-toggle-menu-button:active,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .icon-button:active,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .icon-button:active {
     background-color: rgba(255, 255, 255, 0.22);
+}
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .calendar,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .calendar,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .datemenu-today-button,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .datemenu-today-button,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .quick-toggle-menu,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .quick-toggle-menu,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .message,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .message,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .events-button,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .events-button,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .world-clocks-button,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .world-clocks-button,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .weather-button,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .weather-button {
+    background-color: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.06);
+    box-shadow: none;
+}
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .calendar:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .calendar:hover,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .datemenu-today-button:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .datemenu-today-button:hover,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .quick-toggle-menu:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .quick-toggle-menu:hover,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .message:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .message:hover,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .events-button:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .events-button:hover,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .world-clocks-button:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .world-clocks-button:hover,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .weather-button:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .weather-button:hover {
+    background-color: rgba(255, 255, 255, 0.11);
+}
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .quick-toggle,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .quick-toggle,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .quick-toggle-menu-button,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .quick-toggle-menu-button,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .icon-button,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .icon-button {
+    background-color: rgba(255, 255, 255, 0.45);
+    color: rgba(0, 0, 0, 0.8);
+}
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .quick-toggle:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .quick-toggle:hover,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .quick-toggle-menu-button:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .quick-toggle-menu-button:hover,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .icon-button:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .icon-button:hover {
+    background-color: rgba(255, 255, 255, 0.6);
+}
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .quick-toggle:active,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .quick-toggle:active,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .quick-toggle-menu-button:active,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .quick-toggle-menu-button:active,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .icon-button:active,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .icon-button:active {
+    background-color: rgba(255, 255, 255, 0.72);
+}
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .calendar,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .calendar,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .datemenu-today-button,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .datemenu-today-button,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .quick-toggle-menu,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .quick-toggle-menu,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .message,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .message,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .events-button,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .events-button,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .world-clocks-button,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .world-clocks-button,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .weather-button,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .weather-button {
+    background-color: rgba(255, 255, 255, 0.4);
+    border-color: rgba(0, 0, 0, 0.06);
+    box-shadow: none;
+    color: rgba(0, 0, 0, 0.8);
+}
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .calendar:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .calendar:hover,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .datemenu-today-button:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .datemenu-today-button:hover,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .quick-toggle-menu:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .quick-toggle-menu:hover,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .message:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .message:hover,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .events-button:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .events-button:hover,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .world-clocks-button:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .world-clocks-button:hover,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .weather-button:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .weather-button:hover {
+    background-color: rgba(255, 255, 255, 0.55);
+}
+/* What is on keeps the accent colour, as GNOME draws it, over either. */
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .quick-toggle:checked,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .quick-toggle:checked,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .quick-toggle-has-menu:checked .quick-toggle-menu-button,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .quick-toggle-has-menu:checked .quick-toggle-menu-button,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .quick-toggle:checked,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .quick-toggle:checked,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .quick-toggle-has-menu:checked .quick-toggle-menu-button,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .quick-toggle-has-menu:checked .quick-toggle-menu-button {
+    background-color: -st-accent-color;
+    color: -st-accent-fg-color;
+}
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .quick-toggle:checked:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .quick-toggle:checked:hover,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .quick-toggle-has-menu:checked .quick-toggle-menu-button:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .quick-toggle-has-menu:checked .quick-toggle-menu-button:hover,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .quick-toggle:checked:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .quick-toggle:checked:hover,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .quick-toggle-has-menu:checked .quick-toggle-menu-button:hover,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .quick-toggle-has-menu:checked .quick-toggle-menu-button:hover {
+    background-color: st-lighten(-st-accent-color, 6%);
+}
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear .quick-toggle:checked:active,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear .quick-toggle:checked:active,
+.popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .quick-toggle:checked:active,
+.panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .quick-toggle:checked:active {
+    background-color: st-darken(-st-accent-color, 6%);
 }

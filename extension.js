@@ -21,13 +21,14 @@ import {ExtensionState} from 'resource:///org/gnome/shell/misc/extensionUtils.js
 import {migrate} from './migrate.js';
 import {keepBar, setBar} from './topBar.js';
 import {keepActivities} from './activities.js';
-import {Attention} from './attention.js';
-import {Peek} from './peek.js';
-import {WorkspaceNumbers, moveToWorkspace} from './numbers.js';
-import {DragToWorkspaces} from './drag.js';
-import {keepInOverview, releaseOverview, setIsleBehaviour} from './overview.js';
+import {IslandService} from './island.js';
+import {WorkspaceGlass} from './workspaceGlass.js';
+import {keepInOverview, releaseOverview, setIsleBehaviour, setSwitchGlass} from './overview.js';
 import {setIsleSolidEdge, smoothIsleCorners} from './isleCorners.js';
 import {addIsleWeather} from './isleWeather.js';
+import {lightIsle} from './isleLight.js';
+import {SCHEME_CLASS, loadMenuSchemes} from './menuScheme.js';
+import {LIGHT_EDGE, lightBlur, lightFill} from './light.js';
 import {ALONG_EDGE, BL, BR, DOWN_SIDE, TL, TR, bounds, fitted, lerpShape, outline, sideMask} from './shape.js';
 
 const ISLE_UUID = 'isle@zickrian.github.io';
@@ -78,6 +79,16 @@ function accent() {
     } catch {
         return [0.21, 0.52, 0.89];
     }
+}
+
+/** GNOME's own style now (Settings → Appearance): light unless it prefers dark. */
+const gnomeLight = () => St.Settings.get().color_scheme !== St.SystemColorScheme.PREFER_DARK;
+
+/** The light look made from a dark one (light.js), at Glass strength `tint`; black becomes a solid light grey. Dark
+ * text and icons go on it (stylesheet.css, panel-island-light-*). */
+function lightLook(look, tint = 0) {
+    const blur = lightBlur(look.blur, tint);
+    return {...look, fill: blur ? lightFill(tint) : [0.93, 0.93, 0.94, 1], edge: {...LIGHT_EDGE}, blur, light: true};
 }
 
 /** Whether Isle is installed and on now. */
@@ -617,6 +628,14 @@ export default class PanelIslandExtension extends Extension {
                     const [{CalendarPage}, {label}, {VERTICAL}, Format] = await Promise.all(
                         ['pages/calendar.js', 'widgets.js', 'compat.js', 'format.js'].map(path => import(uri(path))));
                     this._isleCalendar = {CalendarPage, helpers: {label, VERTICAL, Format}};
+                    // Isle's island, for Settings → Light Isle (isleLight.js).
+                    try {
+                        this._isleIslandClass = (await import(uri('island.js'))).Island ?? null;
+                        this._isleStylesheet = isle.dir.get_child('stylesheet.css');
+                    } catch (e) {
+                        console.warn(`[panel-island] Isle's island not reached, it stays dark: ${e}`);
+                        this._isleIslandClass = null;
+                    }
                 } catch (e) {
                     console.warn(`[panel-island] Isle's Calendar page not reached, no weather on it: ${e}`);
                     this._isleCalendar = null;
@@ -680,11 +699,11 @@ export default class PanelIslandExtension extends Extension {
         // Above the capsules: a menu's glass leaves its button over them.
         this._morph = new Morph(GlassBackdrop, Mask);
         this._container.add_child(this._morph.actor);
-        // Settings → Workspace peek: a glass of its own, growing out of the left capsule (peek.js).
+        // Island Menu's workspace peek: a glass of its own, growing out of the left capsule (workspaceGlass.js).
         this._peekGlass = new Morph(GlassBackdrop, Mask);
         this._container.add_child(this._peekGlass.actor);
         const left = () => this._capsules?.[0];
-        this._peek = new Peek({
+        this._workspaces = new WorkspaceGlass({
             glass: this._peekGlass,
             restRect: () => left()?.enabled && left().rect ? left().rect : null,
             openShape: rect => {
@@ -695,57 +714,74 @@ export default class PanelIslandExtension extends Extension {
             hold: on => {
                 if (on)
                     this._hold(left());
-                else if (!this._active && this._heldCapsule === left())
+                else if (!this._active && !this._island?.shown && this._heldCapsule === left())
                     this._hold(null);
             },
-            busy: () => Boolean(this._active) || this._morph.shown,
+            busy: () => Boolean(this._active) || this._morph.shown || Boolean(this._island?.shown),
             opening: () => ({ms: this._ms(OPEN_MS),
                 ease: this._settings.get_boolean('bounce') ? easeOutBack : easeOutCubic}),
             closing: () => ({ms: this._ms(CLOSE_MS), ease: easeInOutCubic}),
-            delay: () => this._settings.get_int('peek-delay'),
             closeDelay: () => this._settings.get_int('close-delay'),
-            urgent: () => this._attention?.urgent ?? new Set(),
-            dragging: () => Boolean(this._drag?.active),
-        });
-        // Settings → Workspace numbers: Panel Island's own (numbers.js).
-        this._numbers = new WorkspaceNumbers(() => this._attention?.urgent ?? new Set());
-        // Settings → Drag to workspaces: a window or an app icon dragged onto a workspace (drag.js).
-        this._drag = new DragToWorkspaces({
-            overPill: (x, y) => {
-                const r = left()?.enabled ? left().rect : null;
-                const slack = 4 * scale();
-                return Boolean(r) && x >= r.x - slack && x <= r.x + r.width + slack &&
-                    y >= r.y - slack && y <= r.y + r.height + slack;
-            },
-            overPeek: (x, y) => this._peek.contains(x, y),
-            targetAt: (x, y) => this._numbers.indexAt(x, y) ?? this._peek.indexAt(x, y),
-            setHot: index => {
-                this._numbers?.setHot(index);
-                this._peek?.setHot(index);
-            },
-            openPeek: () => this._peek.open(),
-            closePeek: why => this._peek.close(false, why),
-            peekShown: () => this._peek.shown,
-            delay: () => this._settings.get_int('peek-delay'),
-            dropWindow: (window, x, y, dragged) => {
-                if (this._peek.dropWindow(window, x, y, dragged))
-                    return;
-                const index = this._numbers.indexAt(x, y);
-                if (index !== null)
-                    moveToWorkspace(window, index);
+            // Its edge lit in the accent colour (`Capsule.setAttention`).
+            setAttention: glow => left()?.setAttention(glow ? {...glow, rgb: accent()} : null),
+            // Light or dark as Island Menu asks (its own Style), the left capsule's text with it; null: as ours.
+            setLight: light => {
+                this._peekLight = light ?? null;
+                const looks = this._lookSet;
+                if (looks)
+                    this._peekGlass.setLook((this._peekLight ?? this._capsulesLight()) ? looks.light : looks.dark);
+                this._leftLight = this._peekLight;
+                this._applyTextStyle();
             },
         });
-        // Settings → Attention glow: the left capsule's edge lit while a workspace wants attention (attention.js).
-        this._attention = new Attention(urgent => {
-            this._applyGlow();
-            this._peek?.setUrgent(urgent);
-            this._numbers?.setUrgent();
+        // Glass for another extension's panel, grown out of the left capsule (island.js: Island Menu's launcher).
+        this._islandGlass = new Morph(GlassBackdrop, Mask);
+        this._container.add_child(this._islandGlass.actor);
+        this._island = new IslandService({
+            glass: this._islandGlass,
+            restRect: () => left()?.enabled && left().rect ? left().rect : null,
+            openShape: rect => {
+                const c = left().rect;
+                return this._shape(Main.panel._leftBox, Math.min(rect.x, c.x),
+                    Math.max(rect.x + rect.width, c.x + c.width), rect);
+            },
+            hold: on => {
+                if (on)
+                    this._hold(left());
+                else if (!this._active && !this._workspaces?.shown && this._heldCapsule === left())
+                    this._hold(null);
+            },
+            opening: () => ({ms: this._ms(OPEN_MS),
+                ease: this._settings.get_boolean('bounce') ? easeOutBack : easeOutCubic}),
+            closing: () => ({ms: this._ms(CLOSE_MS), ease: easeInOutCubic}),
+            closePeek: () => this._workspaces?.close(true, 'an island panel opened'),
+            // Light or dark as the panel on it asks (its text drawn for one or the other), else as the capsules are.
+            isLight: () => this._capsulesLight(),
+            // The left capsule's text and icons with it, so they read on that glass (`_applyTextStyle`); null: as the
+            // capsules are again (it closed).
+            setLight: light => {
+                const looks = this._lookSet;
+                if (looks)
+                    this._islandGlass.setLook(light ?? this._capsulesLight() ? looks.light : looks.dark);
+                this._leftLight = light ?? null;
+                this._applyTextStyle();
+            },
         });
+        this._island.api.workspaces = this._workspaces.api;
 
+        this._leftLight = null;
+        this._peekLight = null;
         this._watched = new Set();
         this._menus = new Map();
         this._cleared = new Set();
         this._restores = new Map();
+        // Menus drawn light or dark as the capsules are, whatever GNOME's own style (menuScheme.js).
+        try {
+            this._menuSchemes = loadMenuSchemes();
+        } catch (e) {
+            console.warn(`[panel-island] Menus keep GNOME's own style: ${e}`);
+            this._menuSchemes = null;
+        }
         this._active = null;
         this._heldCapsule = null;
         this._hoverMode = false;
@@ -763,6 +799,8 @@ export default class PanelIslandExtension extends Extension {
             'notify::visible', queue, 'notify::opacity', queue, this);
         Main.layoutManager.connectObject('monitors-changed', queue, this);
         St.ThemeContext.get_for_stage(global.stage).connectObject('notify::scale-factor', queue, this);
+        // GNOME's style switched (Settings → Appearance): the glass with it, where it follows it.
+        St.Settings.get().connectObject('notify::color-scheme', () => this._applyTheme(), this);
         this._isleSettings?.connectObject('changed::top-bar-color', () => this._applyBar(),
             'changed::top-bar-opacity', () => this._applyBar(),
             'changed::top-bar-style', () => this._applyBar(),
@@ -774,18 +812,13 @@ export default class PanelIslandExtension extends Extension {
             'changed::centre-capsule', () => this._applySides(),
             'changed::top-bar', () => this._applyBar(),
             'changed::keep-activities', () => this._applyActivities(),
-            'changed::workspace-peek', () => this._applyPeek(),
-            'changed::attention-glow', () => this._applyPeek(),
-            'changed::workspace-numbers', () => this._applyPeek(),
-            'changed::drag-to-workspaces', () => this._applyPeek(),
-            'changed::glow-width', () => this._applyGlow(),
-            'changed::attention-pulse', () => this._applyGlow(),
             'changed::top-bar-opacity', () => this._applyBar(),
             'changed::flat-buttons', () => this._applyFlat(),
             'changed::theme', () => this._applyTheme(),
             'changed::tint-like-isle', () => this._applyTheme(),
             'changed::glass-tint', () => this._applyTheme(),
             'changed::edge-light', () => this._applyTheme(),
+            'changed::color-style', () => this._applyTheme(),
             'changed::edge-blur', () => this._applyTheme(),
             'changed::shape', () => this._applyShape(),
             'changed::reach-edges', () => this._applyShape(),
@@ -802,7 +835,10 @@ export default class PanelIslandExtension extends Extension {
             'changed::patch-isle-corners', () => this._applyIslePatch(),
             'changed::isle-weather', () => this._applyIslePatch(),
             'changed::isle-edge-blur', () => this._applyIslePatch(),
-            'changed::patch-isle-lighter', () => this._applyIslePatch(), this);
+            'changed::patch-isle-lighter', () => this._applyIslePatch(),
+            'changed::patch-isle-light', () => this._applyIslePatch(),
+            'changed::switch-glass', () => setSwitchGlass(this._settings.get_string('switch-glass')), this);
+        setSwitchGlass(this._settings.get_string('switch-glass'));
         // Isle turned on or off: the middle capsule gives the clock to Isle's island, or takes it back.
         Main.extensionManager.connectObject('extension-state-changed', (_manager, extension) => {
             if (extension?.uuid === ISLE_UUID) {
@@ -818,32 +854,11 @@ export default class PanelIslandExtension extends Extension {
         keepBar(true);
         this._applyBar();
         this._applyActivities();
-        this._applyPeek();
+        // Island Menu's workspace features told the capsule's glass is there (workspaceGlass.js).
+        this._workspaces.announce();
         // Logging in, the shell is still setting itself up as extensions start: the bar coloured again once it is done.
         if (Main.layoutManager._startingUp)
             Main.layoutManager.connectObject('startup-complete', () => this._applyBar(), this);
-    }
-
-    /** Settings → Workspace peek and Attention glow (peek.js, attention.js). */
-    _applyPeek() {
-        if (this._dead)
-            return;
-        this._peek.enabled = this._settings.get_boolean('workspace-peek');
-        this._attention.enabled = this._settings.get_boolean('attention-glow');
-        this._numbers.enabled = this._settings.get_boolean('workspace-numbers');
-        this._drag.enabled = this._settings.get_boolean('drag-to-workspaces');
-    }
-
-    /** The left capsule's edge lit while a workspace wants attention: Settings → Glow width and Pulse. */
-    _applyGlow() {
-        if (this._dead)
-            return;
-        const urgent = this._attention?.urgent;
-        this._capsules?.[0]?.setAttention(urgent?.size ? {
-            rgb: accent(),
-            width: this._settings.get_double('glow-width'),
-            pulse: this._settings.get_boolean('attention-pulse'),
-        } : null);
     }
 
     /** Settings → Keep GNOME's Activities button (activities.js). */
@@ -885,6 +900,7 @@ export default class PanelIslandExtension extends Extension {
             this._centreOn()];
         this._capsules.forEach((capsule, i) => (capsule.enabled = on[i]));
         this._applyFlat();
+        this._applyTextStyle();
         const active = this._active;
         if (active && !this._sideOn(this._menus.get(active))) {
             this._active = null;
@@ -901,6 +917,19 @@ export default class PanelIslandExtension extends Extension {
         if (mode === 'on' || mode === 'off')
             return mode === 'on';
         return !isleRunning();
+    }
+
+    /** Dark text and icons on light capsules: each side's while its capsule is on and light (stylesheet.css). */
+    _applyTextStyle() {
+        if (this._dead)
+            return;
+        const capsules = this._capsulesLight();
+        ['left', 'right', 'centre'].forEach((side, i) => {
+            const name = `panel-island-light-${side}`;
+            // The left capsule as light or dark as a panel grown out of it asks (island.js), while it is open.
+            const light = i === 0 && this._leftLight !== null ? this._leftLight : capsules;
+            light && this._capsules?.[i]?.enabled ? Main.panel.add_style_class_name(name) : Main.panel.remove_style_class_name(name);
+        });
     }
 
     /** Settings → flat buttons: GNOME's hover and pressed shading off on the buttons in capsules (see stylesheet.css). */
@@ -941,11 +970,10 @@ export default class PanelIslandExtension extends Extension {
         this._restores.clear();
         this._active = null;
         try {
-            this._drag?.destroy();
-            this._peek?.destroy();
-            this._attention?.destroy();
+            this._island?.close(true);
+            this._workspaces?.destroy();
         } catch (e) {
-            console.warn(`[panel-island] Workspace peek not stopped cleanly: ${e}`);
+            console.warn(`[panel-island] The left capsule's panels not stopped cleanly: ${e}`);
         }
     }
 
@@ -963,7 +991,7 @@ export default class PanelIslandExtension extends Extension {
             }
         }
         this._watchMenus();
-        this._peek?.watchTriggers();
+        this._workspaces?.watchTriggers();
         this._queue();
     }
 
@@ -1139,6 +1167,18 @@ export default class PanelIslandExtension extends Extension {
             this._unsmoothIsle();
             this._unsmoothIsle = null;
         }
+        // Settings → Light Isle: Isle's island light as Panel Island's Style says (isleLight.js).
+        const light = !this._dead && this._settings?.get_boolean('patch-isle-light') && this._glassIsIsle &&
+            this._isleIslandClass && this._theme;
+        if (light && !this._unlightIsle) {
+            this._unlightIsle = lightIsle(this._isleIslandClass, this._theme, this._isleStylesheet,
+                () => this._capsulesLight(), () => this._tint());
+            if (!this._unlightIsle)
+                console.warn("[panel-island] Isle's island has changed: it stays dark");
+        } else if (!light && this._unlightIsle) {
+            this._unlightIsle.undo();
+            this._unlightIsle = null;
+        }
         // Settings → Weather on Isle's Calendar page: Isle's own branch's weather, added as it runs (isleWeather.js).
         const weather = !this._dead && this._settings?.get_boolean('isle-weather') && this._isleCalendar;
         if (weather && !this._unweatherIsle) {
@@ -1286,6 +1326,25 @@ export default class PanelIslandExtension extends Extension {
         this._cleared.add(menu);
         menu.box.add_style_class_name('panel-island-clear');
         menu.actor.add_style_class_name('panel-island-menu');
+        this._schemeMenu(menu);
+    }
+
+    /** A menu on the glass light or dark as the capsules are (Settings → Style): its toggles, buttons and cards
+     * see-through on the glass (stylesheet.css), and, when GNOME's own style is the other one, drawn in this one's
+     * colours (menuScheme.js). */
+    _schemeMenu(menu) {
+        const light = this._capsulesLight();
+        if (light)
+            menu.box.add_style_class_name('panel-island-glass-light');
+        else
+            menu.box.remove_style_class_name('panel-island-glass-light');
+        const forced = this._menuSchemes && light !== gnomeLight() ? SCHEME_CLASS[light ? 'light' : 'dark'] : null;
+        for (const cls of Object.values(SCHEME_CLASS)) {
+            if (cls === forced)
+                menu.actor.add_style_class_name(cls);
+            else
+                menu.actor.remove_style_class_name(cls);
+        }
     }
 
     /** Its own background back, and its place (see `_openRect`). */
@@ -1293,8 +1352,10 @@ export default class PanelIslandExtension extends Extension {
         if (!this._cleared.delete(menu))
             return;
         menu.box.remove_style_class_name('panel-island-clear');
+        menu.box.remove_style_class_name('panel-island-glass-light');
         menu.box.translation_x = 0;
         menu.actor.remove_style_class_name('panel-island-menu');
+        Object.values(SCHEME_CLASS).forEach(cls => menu.actor.remove_style_class_name(cls));
     }
 
     /** Hands holding the capsule (its own glass not drawn) to `capsule`, or to none. */
@@ -1419,7 +1480,7 @@ export default class PanelIslandExtension extends Extension {
     _opened(menu, button) {
         this._cancelHoverOpen();
         // A menu opening takes the glass: the workspace peek goes at once.
-        this._peek?.close(true, 'a menu opened');
+        this._workspaces?.close(true, 'a menu opened');
         if (this._dead)
             return;
         if (!this._sideOn(button)) {
@@ -1553,15 +1614,45 @@ export default class PanelIslandExtension extends Extension {
         return isle ? {name: isle.get_string('island-theme'), tint: isle.get_int('glass-tint')} : {name: 'glass', tint: 0};
     }
 
+    /** Settings → Style: whether the capsules are light (Light, Dark, or as GNOME's own style is). */
+    _capsulesLight() {
+        const style = this._settings?.get_string('color-style') ?? 'auto';
+        return style === 'auto' ? gnomeLight() : style === 'light';
+    }
+
+    /** The dark and light looks, and which the capsules use (`_capsulesLight`). */
+    _looks() {
+        const dark = this._look();
+        return {dark, light: lightLook(dark, this._tint())};
+    }
+
+    /** Settings → Glass strength (or Isle's Glass tint, followed), 0 clear to 100 dark or frosted. */
+    _tint() {
+        const likeIsle = this._isleSettings && (this._settings?.get_boolean('tint-like-isle') ?? true);
+        return likeIsle ? this._isleLook().tint : this._settings?.get_int('glass-tint') ?? 0;
+    }
+
     _applyTheme() {
         if (this._theme) {
             const {name, tint} = this._isleLook();
             this._theme.setTheme(name, tint);
         }
-        const look = this._look();
+        const looks = this._looks();
+        this._lookSet = looks;
+        // Isle's island light or dark with the capsules (Settings → Light Isle).
+        this._unlightIsle?.sync();
+        const look = this._capsulesLight() ? looks.light : looks.dark;
         this._capsules.forEach(capsule => capsule.setLook(look));
-        this._morph.setLook(look);
-        this._peekGlass?.setLook(look);
+        // A menu's glass as light or dark as the capsules, the menu on it drawn the same (`_schemeMenu`), so its text
+        // stays readable; as GNOME's own style if the menus can't be drawn otherwise.
+        this._morph.setLook((this._menuSchemes ? this._capsulesLight() : gnomeLight()) ? looks.light : looks.dark);
+        // The other style's stylesheet loaded only while menus are drawn in it (menuScheme.js).
+        const light = this._capsulesLight();
+        this._menuSchemes?.use(light !== gnomeLight() ? (light ? 'light' : 'dark') : null);
+        this._cleared.forEach(menu => this._schemeMenu(menu));
+        this._peekGlass?.setLook((this._peekLight ?? this._capsulesLight()) ? looks.light : looks.dark);
+        this._islandGlass?.setLook(look);
+        this._applyTextStyle();
         if (this._morph.shown && this._morph.rect)
             this._morph.retarget(this._morph.rect);
         this._queue();
@@ -1595,6 +1686,11 @@ export default class PanelIslandExtension extends Extension {
         this._unsmoothIsle = null;
         this._unweatherIsle?.();
         this._unweatherIsle = null;
+        this._unlightIsle?.undo();
+        this._unlightIsle = null;
+        this._menuSchemes?.unload();
+        this._menuSchemes = null;
+        this._isleIslandClass = null;
         this._isleCalendar = null;
         this._Mask = null;
         this._GlassBackdrop = null;
@@ -1602,6 +1698,7 @@ export default class PanelIslandExtension extends Extension {
         if (this._dead) {
             // Already gone with the shell's bar: only what is ours to drop.
             Main.extensionManager.disconnectObject(this);
+            St.Settings.get().disconnectObject(this);
             keepBar(false);
             keepActivities(false);
             this._isleSettings?.disconnectObject(this);
@@ -1610,7 +1707,10 @@ export default class PanelIslandExtension extends Extension {
             this._settings?.disconnectObject(this);
             this._settings = null;
             this._menus?.clear();
-            this._peek = this._attention = this._peekGlass = this._numbers = this._drag = null;
+            if (global.panel_island === this._island?.api)
+                delete global.panel_island;
+            this._workspaces = this._peekGlass = null;
+            this._island = this._islandGlass = null;
             this._capsules = this._morph = this._container = this._isleSettings = this._theme = null;
             return;
         }
@@ -1621,14 +1721,17 @@ export default class PanelIslandExtension extends Extension {
             laters.remove(this._menuLater);
         this._later = this._menuLater = 0;
         for (const object of [Main.panel._leftBox, Main.panel._rightBox, Main.panel._centerBox, Main.panel,
-            Main.layoutManager.panelBox, Main.layoutManager, Main.extensionManager, St.ThemeContext.get_for_stage(global.stage)])
+            Main.layoutManager.panelBox, Main.layoutManager, Main.extensionManager, St.ThemeContext.get_for_stage(global.stage),
+            St.Settings.get()])
             object.disconnectObject(this);
         this._isleSettings?.disconnectObject(this);
         this._rwcSettings?.disconnectObject(this);
         this._rwcSettings = null;
         this._settings?.disconnectObject(this);
-        for (const side of ['left', 'right', 'centre'])
+        for (const side of ['left', 'right', 'centre']) {
             Main.panel.remove_style_class_name(`panel-island-flat-${side}`);
+            Main.panel.remove_style_class_name(`panel-island-light-${side}`);
+        }
         keepBar(false);
         setBar(null);
         keepActivities(false);
@@ -1648,16 +1751,14 @@ export default class PanelIslandExtension extends Extension {
         }
         this._menus?.clear();
         this._active = null;
-        this._drag?.destroy();
-        this._drag = null;
-        this._numbers?.destroy();
-        this._numbers = null;
-        this._peek?.destroy();
-        this._peek = null;
-        this._attention?.destroy();
-        this._attention = null;
+        this._workspaces?.destroy();
+        this._workspaces = null;
         this._peekGlass?.destroy();
         this._peekGlass = null;
+        this._island?.destroy();
+        this._island = null;
+        this._islandGlass?.destroy();
+        this._islandGlass = null;
         this._morph?.destroy();
         this._morph = null;
         this._capsules?.forEach(capsule => capsule.destroy());

@@ -19,6 +19,7 @@
 // only if Isle still has both, falls back to Isle's own method should it fail, and comes off again as it was.
 
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
@@ -98,7 +99,7 @@ const animatingScene = () => switching.size > 0 || overviewMoving || Boolean(Mai
 const shown = backdrop => backdrop.mapped ?? true;
 
 /** The scenes `backdrop` is given now: those GNOME draws, while it is on and on the screen. */
-const scenesFor = backdrop => (backdrop._on && shown(backdrop) ? scenes() : []);
+const scenesFor = backdrop => (backdrop._on && shown(backdrop) ? scenes(backdrop) : []);
 
 /** Whether `actor` is a workspace switch's group (workspaceAnimation.js MonitorGroup). */
 function isSwitchGroup(actor) {
@@ -107,8 +108,58 @@ function isSwitchGroup(actor) {
 }
 
 /** The scenes GNOME is drawing in place of the desktop now, bottom first. */
-function scenes() {
-    const now = [...switching];
+/** On battery (UPower's OnBattery): a workspace switch costs next to nothing. No glass is given a copy of the sliding
+ * scene (carrying one along is itself work every frame, blurred or not, measured at about three times the CPU), and
+ * ours keeps the blur it had as the switch began until it ends (`FROZEN_MS`), so it shows no jump. The overview, still,
+ * as on mains. */
+let onBattery = false;
+
+/** Settings → Glass during workspace switches: 'always' still (the default), 'battery' still on battery only,
+ * 'never' (the glass follows the slide live). */
+let switchGlass = 'always';
+const stillDuringSwitch = () => switchGlass === 'always' || (switchGlass === 'battery' && onBattery);
+
+/** Sets it (`mode` as above); the glass looked at again at once. */
+export function setSwitchGlass(mode) {
+    const next = ['always', 'battery', 'never'].includes(mode) ? mode : 'always';
+    if (next === switchGlass)
+        return;
+    switchGlass = next;
+    syncAll();
+}
+let upower = null;
+const FROZEN_MS = 60000;
+
+function watchPower() {
+    if (upower)
+        return;
+    try {
+        upower = Gio.DBusProxy.new_for_bus_sync(Gio.BusType.SYSTEM, Gio.DBusProxyFlags.NONE, null,
+            'org.freedesktop.UPower', '/org/freedesktop/UPower', 'org.freedesktop.UPower', null);
+        const sync = () => {
+            const now = Boolean(upower?.get_cached_property('OnBattery')?.unpack());
+            if (now === onBattery)
+                return;
+            onBattery = now;
+            syncAll();
+        };
+        upower.connect('g-properties-changed', sync);
+        sync();
+    } catch (e) {
+        console.warn(`[panel-island] Battery state not known (glass blurs as on mains): ${e.message}`);
+        upower = null;
+    }
+}
+
+function unwatchPower() {
+    upower?.run_dispose?.();
+    upower = null;
+    onBattery = false;
+}
+
+/** The scenes GNOME draws now, for `backdrop` (Isle's not given a switch's on battery). */
+function scenes(backdrop = null) {
+    const now = stillDuringSwitch() ? [] : [...switching];
     if (inOverview())
         now.push(Main.layoutManager.overviewGroup);
     return now;
@@ -156,8 +207,19 @@ function syncScenes(backdrop, want) {
     }
     // Blurred less often while the scene under it animates (our mask only: Isle's own keeps its rate).
     const mask = backdrop._mask;
-    if (mask && 'frameMs' in mask)
-        mask.frameMs = held.size && animatingScene() ? SCENE_FRAME_MS : RESTING_FRAME_MS;
+    if (mask && 'frameMs' in mask) {
+        // On battery a switch is not blurred at all: the blur from before it held, blurred anew once it is over.
+        const frozen = stillDuringSwitch() && switching.size > 0;
+        const was = mask.frameMs;
+        // Live (Settings → Glass during workspace switches): every frame while GNOME animates a scene under it, the
+        // blur moving with the slide; the halved rate (`SCENE_FRAME_MS`) only when held still is not chosen at all.
+        const animating = held.size && animatingScene();
+        mask.frameMs = frozen ? FROZEN_MS : animating ? (stillDuringSwitch() ? SCENE_FRAME_MS : 0) : RESTING_FRAME_MS;
+        if (was === FROZEN_MS && !frozen) {
+            mask.stopCatchUp?.();
+            backdrop.queue_redraw?.();
+        }
+    }
     if (held.size && !backdrop._panelIslandWindowsId)
         backdrop._panelIslandWindowsId = global.window_group.connect('notify::visible', () => syncWallpaper(backdrop));
     else if (!held.size && backdrop._panelIslandWindowsId) {
@@ -176,10 +238,9 @@ function clearScenes(backdrop) {
 
 /** Gives every known backdrop the scenes GNOME draws now. */
 function syncAll() {
-    const now = scenes();
     for (const backdrop of known) {
         try {
-            syncScenes(backdrop, backdrop._on && shown(backdrop) ? now : []);
+            syncScenes(backdrop, scenesFor(backdrop));
         } catch (e) {
             console.warn(`[panel-island] Glass over GNOME's own scene: ${e}`);
         }
@@ -263,6 +324,7 @@ export function keepInOverview(target) {
     const own = name => Object.getOwnPropertyDescriptor(target, name);
     const before = {sync: own('_syncVisible'), places: own('_windowPlaces')};
     watchSwitches();
+    watchPower();
 
     // Called by Isle's glass as it turns on or off and as the overview starts to open and once it has closed.
     target._syncVisible = function () {
@@ -336,6 +398,7 @@ export function keepInOverview(target) {
 /** Lets go of everything (this extension going): every scene copy out, nothing followed. */
 export function releaseOverview() {
     unwatchSwitches();
+    unwatchPower();
     isleDoes.overview = isleDoes.lighter = false;
     for (const backdrop of known)
         clearScenes(backdrop);

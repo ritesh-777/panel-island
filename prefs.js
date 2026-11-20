@@ -181,6 +181,11 @@ export default class PanelIslandPreferences extends ExtensionPreferences {
                 ? 'Glass pills round the top bar\'s items, in Isle\'s look. One turned off looks and opens as GNOME\'s.'
                 : 'Glass pills round the top bar\'s items. One turned off looks and opens as GNOME\'s.',
         });
+        capsules.add(choiceRow(settings, 'color-style', 'Style', [
+            ['auto', 'Follow GNOME', 'Light or dark as Settings → Appearance is'],
+            ['light', 'Light', 'Frosted light glass, dark text and icons'],
+            ['dark', 'Dark', 'Smoked glass, light text and icons'],
+        ]));
         capsules.add(choiceRow(settings, 'shape', 'Shape', SHAPES));
         capsules.add(choiceRow(settings, 'theme', 'Look', LOOKS));
         const likeIsle = switchRow(settings, 'tint-like-isle', 'Glass as strong as Isle\'s',
@@ -209,33 +214,18 @@ export default class PanelIslandPreferences extends ExtensionPreferences {
             'No shading on a button under the pointer or pressed'));
         page.add(capsules);
 
-        const workspaces = new Adw.PreferencesGroup({
-            title: 'Workspaces',
-            description: 'In the left capsule.',
+        // Settings → Glass during workspace switches (overview.js): its own group, so it is easy to find.
+        const switching = new Adw.PreferencesGroup({
+            title: 'Workspace switches',
+            description: 'How the glass (capsules, menus, the workspace peek, Island Menu on Panel Island) behaves while a workspace slides.',
         });
-        workspaces.add(switchRow(settings, 'workspace-numbers', 'Workspace numbers',
-            'Panel Island\'s own, one per workspace. Click one to go there, drop a window or app icon on one'));
-        workspaces.add(switchRow(settings, 'drag-to-workspaces', 'Drag to workspaces',
-            'Hold a window by its title bar, or an app icon, over the capsule: the peek opens. Let go on a workspace to send it there'));
-        workspaces.add(switchRow(settings, 'workspace-peek', 'Workspace peek',
-            'Rest the pointer on the workspace buttons: a live preview of each workspace. Click one to go there, drag a window onto one to move it'));
-        const peekDelay = spinRow(settings, 'peek-delay', 'Peek delay',
-            'How long the pointer rests before it opens, in milliseconds', {lower: 100, upper: 2000, step: 50});
-        const syncPeek = () => (peekDelay.sensitive = settings.get_boolean('workspace-peek'));
-        settings.connect('changed::workspace-peek', syncPeek);
-        syncPeek();
-        workspaces.add(peekDelay);
-        workspaces.add(switchRow(settings, 'attention-glow', 'Attention glow',
-            'The capsule\'s edge glows while a window on another workspace asks for attention'));
-        const glowWidth = spinRow(settings, 'glow-width', 'Glow width',
-            'How wide its glowing line is, in px', {lower: 0.5, upper: 6, step: 0.5, digits: 1});
-        const glowPulse = switchRow(settings, 'attention-pulse', 'Pulse', 'The glow slowly breathes in and out');
-        const syncGlow = () => (glowWidth.sensitive = glowPulse.sensitive = settings.get_boolean('attention-glow'));
-        settings.connect('changed::attention-glow', syncGlow);
-        syncGlow();
-        workspaces.add(glowWidth);
-        workspaces.add(glowPulse);
-        page.add(workspaces);
+        switching.add(choiceRow(settings, 'switch-glass', 'Glass during workspace switches', [
+            ['always', 'Still', 'Held still as a workspace slides, blurred again once it stops: much lighter'],
+            ['battery', 'Still on battery', 'Held still on battery, following the slide on mains power'],
+            ['never', 'Live', 'Follows the slide as it moves: smoothest, heaviest'],
+        ]));
+        page.add(switching);
+
 
         const isle = new Adw.PreferencesGroup({
             title: 'Isle',
@@ -245,6 +235,8 @@ export default class PanelIslandPreferences extends ExtensionPreferences {
             'Isle\'s island stays blurred in the overview and as workspaces switch, blurring what is really behind it'));
         isle.add(switchRow(settings, 'patch-isle-lighter', 'Lighter blur updates',
             'A window just below the bar, a video in it, no longer has Isle\'s glass blurred again every frame'));
+        isle.add(switchRow(settings, 'patch-isle-light', 'Light Isle',
+            'Isle\'s island light too when the Style above is light: its glass, text and icons'));
         isle.add(switchRow(settings, 'isle-weather', 'Weather on Isle\'s Calendar page',
             'The day\'s sky and temperature beside it; click for the day in full. For GNOME Weather\'s place'));
         isle.add(switchRow(settings, 'patch-isle-corners', 'Smooth Isle\'s notch corners',
