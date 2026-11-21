@@ -35,6 +35,20 @@ export function lerpShape(a, b, t) {
     };
 }
 
+/** `shape` turned upside down about the line y = `axis` / 2 (a monitor's middle: `axis` its top twice plus its
+ * height): a shape made for a bar at the top, for one at the bottom. Each corner trades places with the one above or
+ * below it, and the screen's edge it meets goes from the top to the bottom. */
+export function flipped(shape, axis) {
+    const swap = v => [v[BL], v[BR], v[TR], v[TL]];
+    const [top, right, bottom, left] = shape.flush;
+    return {
+        ...shape,
+        y: axis - shape.y - shape.height,
+        corners: swap(shape.corners), flares: swap(shape.flares), cuts: swap(shape.cuts ?? [0, 0, 0, 0]),
+        flush: [bottom, right, top, left],
+    };
+}
+
 /** `shape` with corners it can hold. Round ones, as CSS fits border radii: shrunk only where those along one side
  * add up to more than it is long, and only as much as that takes (a round top corner over a flared or square bottom
  * one may be as big as the shape is tall; two round ones share the height). A flare along an edge: at most half the

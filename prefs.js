@@ -272,6 +272,10 @@ export default class PanelIslandPreferences extends ExtensionPreferences {
         settings.connect('changed::top-bar', syncBar);
         syncBar();
         bar.add(barOpacity);
+        bar.add(switchRow(settings, 'bar-at-bottom', 'Bar at the bottom',
+            ISLE_INSTALLED
+                ? 'The bar, its capsules and menus at the bottom of the main display. Isle\'s island stays at the top, as on a display with no bar'
+                : 'The bar, its capsules and menus at the bottom of the main display, menus opening upwards'));
         page.add(bar);
 
         const edges = new Adw.PreferencesGroup({
@@ -338,6 +342,10 @@ export default class PanelIslandPreferences extends ExtensionPreferences {
         opening.add(openOn);
         opening.add(hoverDelay);
         opening.add(closeDelay);
+        opening.add(choiceRow(settings, 'island-panel-from', 'Island Menu opens from', [
+            ['left', 'Left capsule', 'Island Menu\'s launcher grows out of the left capsule'],
+            ['centre', 'Middle capsule', 'The launcher grows out of the middle capsule, centred; the left one while the middle one is not shown'],
+        ]));
         page.add(opening);
         syncOpenOn();
 
@@ -348,5 +356,100 @@ export default class PanelIslandPreferences extends ExtensionPreferences {
         motion.add(switchRow(settings, 'centre-menus', 'Centre menus',
             'Move a menu to the middle of its glass instead of under its button'));
         page.add(motion);
+
+        this._clockPage(window, settings);
+        this._weatherPage(window, settings);
+    }
+
+    /** Settings → Weather: its own page. */
+    _weatherPage(window, settings) {
+        const page = new Adw.PreferencesPage({title: 'Weather', icon_name: 'weather-few-clouds-symbolic'});
+        window.add(page);
+        const group = new Adw.PreferencesGroup({
+            title: 'Weather',
+            description: 'GNOME\'s own weather, for the place set in GNOME Weather.',
+        });
+        group.add(switchRow(settings, 'weather-enabled', 'Weather in a capsule', 'Its icon and temperature'));
+        const where = choiceRow(settings, 'weather-capsule', 'Capsule', [
+            ['left', 'Left capsule', 'At the end of the left capsule'],
+            ['centre', 'Middle capsule', 'At the end of the middle capsule, after the clock if it is there'],
+        ]);
+        const glass = switchRow(settings, 'weather-glass', 'Weather on the glass',
+            'Rain drops, frost, a warm glare or mist on the capsule, as the sky is. Still, redrawn only as it changes');
+        const words = switchRow(settings, 'weather-words', 'Conditions in words', 'Such as "Partly cloudy", after the temperature');
+        const rain = switchRow(settings, 'weather-rain-chip', 'Rain coming', 'When rain is due, up to three hours ahead');
+        [where, glass, words, rain].forEach(row => group.add(row));
+        page.add(group);
+        const sync = () => [where, glass, words, rain].forEach(row => (row.sensitive = settings.get_boolean('weather-enabled')));
+        settings.connect('changed::weather-enabled', sync);
+        sync();
+    }
+
+    /** Settings → Clock: its own page. */
+    _clockPage(window, settings) {
+        const page = new Adw.PreferencesPage({title: 'Clock', icon_name: 'preferences-system-time-symbolic'});
+        window.add(page);
+
+        const clock = new Adw.PreferencesGroup({
+            title: 'Clock',
+            description: 'A clock of its own in a capsule, shown whatever hides GNOME\'s clock.' +
+                (ISLE_INSTALLED ? ' With the bar at the top, Isle\'s island sits in the middle: the left capsule suits it better there.' : ''),
+        });
+        clock.add(switchRow(settings, 'clock-enabled', 'Clock in a capsule', 'Off: GNOME\'s clock as it is'));
+        const hideGnome = switchRow(settings, 'clock-hide-gnome', 'Hide GNOME\'s clock',
+            'So the time shows once. Off: GNOME\'s clock left as it is (shown, or hidden by Top Bar Organizer)');
+        const where = choiceRow(settings, 'clock-capsule', 'Capsule', [
+            ['left', 'Left capsule', 'After the workspaces, at the end of the left capsule'],
+            ['centre', 'Middle capsule', 'First in the middle of the bar'],
+        ]);
+        const style = choiceRow(settings, 'clock-style', 'Style', [
+            ['flip', 'Flip digits', 'Small tiles, a changed digit flipping over'],
+            ['sun', 'Sun arc', 'A sun or moon on an arc across the day, the time beside it'],
+        ]);
+        const meridiem = choiceRow(settings, 'clock-flip-meridiem', 'AM and PM', [
+            ['stacked', 'Stacked', 'AM over PM, the one it is lit'],
+            ['tile', 'Its own tile', 'A flip tile of its own, flipping at noon and midnight'],
+        ]);
+        const sunLabel = switchRow(settings, 'clock-sun-label', 'AM or PM label',
+            'A small AM or PM after the time; off, the arc alone tells (morning left, evening right)');
+        const date = switchRow(settings, 'clock-show-date', 'Date', 'The day and date after the time');
+        [hideGnome, where, style, meridiem, sunLabel, date].forEach(row => clock.add(row));
+        page.add(clock);
+
+        const extras = new Adw.PreferencesGroup({title: 'More'});
+        const scroll = switchRow(settings, 'clock-scroll', 'Scroll to switch',
+            'Scroll over it for the date and week, then your first world clock, for a few seconds');
+        const colours = switchRow(settings, 'clock-sun-colours', 'Sun colours',
+            'Golden before sunset, blue at dusk and dawn, a moon at night: from your weather place\'s sunrise and sunset');
+        const dnd = switchRow(settings, 'clock-dnd', 'Do Not Disturb moon', 'A small moon while notifications are silenced');
+        const copy = switchRow(settings, 'clock-copy', 'Right click copies',
+            'Right click copies the date and time, instead of opening the calendar');
+        const eventChip = switchRow(settings, 'clock-event-chip', 'Next event',
+            'Before an event in your calendar, its name and how soon beside the clock');
+        const eventLead = spinRow(settings, 'clock-event-lead', 'Next event shows',
+            'How many minutes before it starts', {lower: 1, upper: 120, step: 5});
+        settings.connect('changed::clock-event-chip', () => (eventLead.sensitive = settings.get_boolean('clock-event-chip')));
+        eventLead.sensitive = settings.get_boolean('clock-event-chip');
+        const notifyBadge = choiceRow(settings, 'clock-notify-badge', 'Notifications', [
+            ['dot', 'A dot', 'A small dot right of the time while notifications wait'],
+            ['count', 'How many', 'Their number right of the time'],
+            ['off', 'Nothing', 'None on the clock; still in its panel'],
+        ]);
+        [notifyBadge, eventChip, eventLead, scroll, colours, dnd, copy].forEach(row => extras.add(row));
+        page.add(extras);
+
+
+        // Only what goes with the style in use, and nothing while the clock is off.
+        const sync = () => {
+            const on = settings.get_boolean('clock-enabled');
+            const sun = settings.get_string('clock-style') === 'sun';
+            [hideGnome, where, style, date, extras].forEach(row => (row.sensitive = on));
+            meridiem.visible = !sun;
+            sunLabel.visible = sun;
+            colours.visible = sun;
+            meridiem.sensitive = sunLabel.sensitive = on;
+        };
+        ['clock-enabled', 'clock-style'].forEach(key => settings.connect(`changed::${key}`, sync));
+        sync();
     }
 }

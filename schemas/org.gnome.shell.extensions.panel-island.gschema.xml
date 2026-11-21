@@ -231,6 +231,137 @@
       <summary>Lighter blur updates for Isle</summary>
       <description>Isle's glass copies every window its blur reaches, a margin below the bar too, so a window there (a video in it) has it blurred again every frame. On: only windows under the glass itself are copied, as for this extension's own glass. Changed as Isle runs, its files are not; off, or if Isle has changed so this cannot apply, Isle is as it is.</description>
     </key>
+    <key name="island-panel-from" type="s">
+      <choices>
+        <choice value="left"/>
+        <choice value="centre"/>
+      </choices>
+      <default>'left'</default>
+      <summary>Island Menu opens from</summary>
+      <description>The capsule Island Menu's launcher grows out of: 'left' (its own capsule), or 'centre', the middle one, the launcher centred under (or, with the bar at the bottom, above) it. Only the launcher: the workspace peek stays with the left capsule. While the middle capsule is not shown (Settings → Middle capsule), the left one.</description>
+    </key>
+    <key name="clock-enabled" type="b">
+      <default>false</default>
+      <summary>Clock in a capsule</summary>
+      <description>A clock of its own in the left or the middle capsule (clock-capsule), in the style clock-style says, whatever hides GNOME's clock. Clicking it opens GNOME's calendar. Off: none, GNOME's clock as it is.</description>
+    </key>
+    <key name="clock-hide-gnome" type="b">
+      <default>true</default>
+      <summary>Hide GNOME's clock</summary>
+      <description>While the capsule clock shows, GNOME's own clock is hidden, so the time shows once (its calendar opens from the capsule clock). Off: GNOME's clock left as it is, shown or hidden by whatever else says (Top Bar Organizer, Isle).</description>
+    </key>
+    <key name="clock-event-chip" type="b">
+      <default>true</default>
+      <summary>Next event</summary>
+      <description>Before an event with a time of day (not a whole-day one) in GNOME's calendar, its name and how soon ("Standup · 12 min") beside the clock, from clock-event-lead minutes before it until a minute after it starts.</description>
+    </key>
+    <key name="clock-event-lead" type="i">
+      <range min="1" max="120"/>
+      <default>15</default>
+      <summary>Next event: how long before</summary>
+      <description>Minutes before an event its chip shows.</description>
+    </key>
+    <key name="clock-notify-badge" type="s">
+      <choices>
+        <choice value="dot"/>
+        <choice value="count"/>
+        <choice value="off"/>
+      </choices>
+      <default>'dot'</default>
+      <summary>Notifications on the clock</summary>
+      <description>While notifications wait (as GNOME's own dot counts them, none with Do Not Disturb): dot, a small dot right of the time; count, how many; off, nothing. The clock's panel opens them from its top row either way.</description>
+    </key>
+    <key name="clock-capsule" type="s">
+      <choices>
+        <choice value="left"/>
+        <choice value="centre"/>
+      </choices>
+      <default>'left'</default>
+      <summary>Clock capsule</summary>
+      <description>left: at the end of the bar's left box, in the left capsule. centre: first in the bar's middle box, in the middle capsule (with the bar at the top, under Isle's island when Isle has it there).</description>
+    </key>
+    <key name="clock-style" type="s">
+      <choices>
+        <choice value="flip"/>
+        <choice value="sun"/>
+      </choices>
+      <default>'flip'</default>
+      <summary>Clock style</summary>
+      <description>flip: flip digits, a changed digit flipping over. sun: the time beside a sun (or moon) on an arc across the day.</description>
+    </key>
+    <key name="clock-flip-meridiem" type="s">
+      <choices>
+        <choice value="stacked"/>
+        <choice value="tile"/>
+      </choices>
+      <default>'stacked'</default>
+      <summary>AM and PM with flip digits</summary>
+      <description>stacked: AM over PM, the one it is lit. tile: a flip tile of its own. Only with a 12-hour clock.</description>
+    </key>
+    <key name="clock-sun-label" type="b">
+      <default>true</default>
+      <summary>AM or PM after the time (sun)</summary>
+      <description>With the sun style and a 12-hour clock: a small AM or PM after the time. Off: the arc alone tells (morning on its left, evening on its right).</description>
+    </key>
+    <key name="clock-show-date" type="b">
+      <default>true</default>
+      <summary>Date beside the time</summary>
+      <description>The day and date, softer, after the time.</description>
+    </key>
+    <key name="clock-scroll" type="b">
+      <default>true</default>
+      <summary>Scroll to switch</summary>
+      <description>Scrolling over the clock shows the date and week, then the first of your world clocks, for a few seconds.</description>
+    </key>
+    <key name="clock-sun-colours" type="b">
+      <default>true</default>
+      <summary>Sun colours</summary>
+      <description>The sun style follows the day: golden before sunset, blue at dusk and dawn, a moon at night, from the weather place's sunrise and sunset. Off: drawn in the bar's text colour.</description>
+    </key>
+    <key name="clock-dnd" type="b">
+      <default>true</default>
+      <summary>Do Not Disturb moon</summary>
+      <description>A small moon after the time while notifications are silenced.</description>
+    </key>
+    <key name="clock-copy" type="b">
+      <default>true</default>
+      <summary>Right click copies</summary>
+      <description>Right click on the clock copies the date and time (and no longer opens the calendar).</description>
+    </key>
+    <key name="weather-enabled" type="b">
+      <default>false</default>
+      <summary>Weather in a capsule</summary>
+      <description>The weather (GNOME's own, for GNOME Weather's place) in the left or the middle capsule: its icon and temperature; its menu the next twelve hours. Hidden while there is no weather to show.</description>
+    </key>
+    <key name="weather-capsule" type="s">
+      <choices>
+        <choice value="left"/>
+        <choice value="centre"/>
+      </choices>
+      <default>'centre'</default>
+      <summary>Weather capsule</summary>
+      <description>left: at the end of the bar's left box. centre: at the end of its middle box.</description>
+    </key>
+    <key name="weather-glass" type="b">
+      <default>true</default>
+      <summary>Weather on the glass</summary>
+      <description>Its capsule's glass takes on the sky: drops of rain, frost when it is cold, a warm glare in sun, mist in fog, a few stars on a clear night. Drawn once as the sky changes, never moving.</description>
+    </key>
+    <key name="weather-words" type="b">
+      <default>false</default>
+      <summary>Conditions in words</summary>
+      <description>The sky in words ("Partly cloudy") after the temperature.</description>
+    </key>
+    <key name="weather-rain-chip" type="b">
+      <default>true</default>
+      <summary>Rain coming</summary>
+      <description>Before rain, when it is due ("Rain ~4 PM"), from the hourly forecast, up to three hours ahead.</description>
+    </key>
+    <key name="bar-at-bottom" type="b">
+      <default>false</default>
+      <summary>Bar at the bottom</summary>
+      <description>GNOME's top bar moved to the bottom of the main display, the capsules and their menus' glass with it, menus opening upwards. Isle's island stays at the top of the screen, hanging from it as on a display with no bar (Isle does this itself; nothing of Isle's is changed). Off: the bar is where GNOME puts it.</description>
+    </key>
     <key name="patch-isle-calm" type="b">
       <default>false</default>
       <summary>Isle without bounce</summary>

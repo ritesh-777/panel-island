@@ -238,7 +238,6 @@
   icon-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
 }
 
-
 /* A menu on the glass: its toggles, round buttons and cards (Quick Settings' toggles and their opened menus, the
    calendar's boxes, notifications) see-through over the glass instead of solid, so the blur behind shows through
    each of them; GNOME's light or dark colours kept for their text, the accent colour for what is on. The menu's glass
@@ -388,4 +387,160 @@
 .popup-menu-boxpointer.panel-island-menu .panel-island-clear.panel-island-glass-light .quick-toggle:checked:active,
 .panel-island-menu .popup-menu-boxpointer .panel-island-clear.panel-island-glass-light .quick-toggle:checked:active {
     background-color: st-darken(-st-accent-color, 6%);
+}
+
+/* Settings → Clock (clock.js): GNOME's clock drawn anew in a capsule. Text colours come from the bar's buttons (light
+ * capsules included); only the tiles' own shade changes with them. Tabular figures keep its width still. */
+.pi-clock {
+    spacing: 6px;
+}
+.pi-clock StLabel {
+    font-feature-settings: "tnum";
+}
+.pi-clock-tiles {
+    spacing: 2px;
+}
+.pi-clock-tile {
+    background-color: rgba(255, 255, 255, 0.14);
+    border-radius: 4px;
+    min-width: 0.8em;
+    padding: 1px 2px;
+}
+.pi-clock-tile-wide {
+    min-width: 1.7em;
+    margin-left: 3px;
+}
+.pi-clock-tile-wide .pi-clock-tile-label {
+    font-size: 0.72em;
+    letter-spacing: 0.04em;
+}
+.pi-clock-tile-label,
+.pi-clock-time {
+    font-weight: bold;
+}
+.pi-clock-colon {
+    padding: 0 1px;
+    font-weight: bold;
+}
+.pi-clock-stack {
+    spacing: 0;
+}
+.pi-clock-stack-label {
+    font-size: 0.6em;
+    font-weight: bold;
+    letter-spacing: 0.04em;
+}
+.pi-clock-meridiem {
+    font-size: 0.75em;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+}
+.pi-clock-aside {
+    font-size: 0.9em;
+    font-weight: normal;
+}
+.pi-clock-sun {
+    width: 30px;
+    height: 18px;
+}
+.pi-clock-dnd,
+.pi-clock-icon {
+    icon-size: 13px;
+}
+.pi-clock-dots {
+    spacing: 3px;
+}
+.pi-clock-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 2px;
+    background-color: rgba(255, 255, 255, 0.3);
+}
+.pi-clock-dot-on {
+    background-color: rgba(255, 255, 255, 0.95);
+}
+#panel.panel-island-light-left #panelLeft .pi-clock-tile,
+#panel.panel-island-light-centre #panelCenter .pi-clock-tile {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+#panel.panel-island-light-left #panelLeft .pi-clock-dot,
+#panel.panel-island-light-centre #panelCenter .pi-clock-dot {
+    background-color: rgba(0, 0, 0, 0.25);
+}
+#panel.panel-island-light-left #panelLeft .pi-clock-dot-on,
+#panel.panel-island-light-centre #panelCenter .pi-clock-dot-on {
+    background-color: rgba(0, 0, 0, 0.85);
+}
+
+/* Settings → Weather (capsuleWeather.js). */
+.pi-weather {
+    spacing: 5px;
+}
+.pi-weather StLabel {
+    font-feature-settings: "tnum";
+}
+.pi-weather-icon {
+    icon-size: 15px;
+}
+.pi-weather-temp {
+    font-weight: bold;
+}
+.pi-weather-words {
+    font-size: 0.9em;
+}
+.pi-weather-chip {
+    spacing: 4px;
+    padding: 1px 7px;
+    border-radius: 99px;
+    background-color: rgba(55, 138, 221, 0.35);
+}
+.pi-weather-chip-icon {
+    icon-size: 12px;
+}
+.pi-weather-chip-text {
+    font-size: 0.85em;
+}
+
+/* Settings → Clock: the next event. */
+.pi-clock-event {
+    spacing: 5px;
+    padding: 1px 8px;
+    border-radius: 99px;
+    background-color: rgba(127, 119, 221, 0.32);
+}
+.pi-clock-event-now {
+    background-color: -st-accent-color;
+}
+.pi-clock-event-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    background-color: -st-accent-color;
+}
+.pi-clock-event-now .pi-clock-event-dot {
+    background-color: rgba(255, 255, 255, 0.9);
+}
+.pi-clock-event-text {
+    font-size: 0.85em;
+}
+
+/* Notifications waiting, on the clock. */
+.pi-clock-badge {
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background-color: #d85a30;
+}
+.pi-clock-badge-dot {
+    min-width: 7px;
+    width: 7px;
+    height: 7px;
+    padding: 0;
+    border-radius: 4px;
+}
+.pi-clock-badge-text {
+    font-size: 0.72em;
+    font-weight: bold;
+    color: #ffffff;
 }

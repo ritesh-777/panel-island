@@ -34,11 +34,11 @@ const hasTemp = info => info.get_value_temp(GWeather.TemperatureUnit.DEFAULT)[0]
 const timeOf = info => new Date(info.get_value_update()[1] * 1000);
 /** Whether GWeather's `text` says something: its empty answers are '-' and "Unknown" (translated). */
 const UNKNOWN = new Set(['-', 'unknown', GLib.dgettext('libgweather-4.0', 'Unknown').toLowerCase()]);
-const known = text => Boolean(text) && !UNKNOWN.has(String(text).trim().toLowerCase());
+export const known = text => Boolean(text) && !UNKNOWN.has(String(text).trim().toLowerCase());
 
 /** What a GWeather icon name shows, in words: for a sky GWeather has no words for (its conditions and sky both
  * unknown, as some providers' are). */
-function skyWords(iconName = '') {
+export function skyWords(iconName = '') {
     for (const [part, words] of [['storm', 'Storm'], ['snow', 'Snow'], ['showers', 'Showers'], ['rain', 'Rain'],
         ['fog', 'Fog'], ['overcast', 'Cloudy'], ['few-clouds', 'Partly cloudy'], ['clear', 'Clear']]) {
         if (iconName.includes(part))

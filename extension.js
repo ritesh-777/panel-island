@@ -32,7 +32,10 @@ import {tuneIsle} from './isleTuning.js';
 import {calmIsle} from './isleCalm.js';
 import {SCHEME_CLASS, loadMenuSchemes} from './menuScheme.js';
 import {LIGHT_EDGE, lightBlur, lightFill} from './light.js';
-import {ALONG_EDGE, BL, BR, DOWN_SIDE, TL, TR, bounds, fitted, lerpShape, outline, sideMask} from './shape.js';
+import {ALONG_EDGE, BL, BR, DOWN_SIDE, TL, TR, bounds, fitted, flipped, lerpShape, outline, sideMask} from './shape.js';
+import {atBottom, setBarAtBottom} from './barPosition.js';
+import {CapsuleClock} from './clock.js';
+import {CapsuleWeather} from './capsuleWeather.js';
 
 const ISLE_UUID = 'isle@zickrian.github.io';
 const ISLE_SCHEMA = 'org.gnome.shell.extensions.isle';
@@ -152,6 +155,91 @@ function fadingCorners(ox, oy, w, h, corners, flush) {
     return zones;
 }
 
+/** A small number in 0..1 for `i`, the same each time: where a drop sits does not jump as the glass is drawn again. */
+const seeded = i => {
+    const x = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
+    return x - Math.floor(x);
+};
+
+/** The weather on a capsule's glass, over the body `w` × `h` at `ox`, `oy` (the caller clips to its shape): drops of
+ * rain, frost creeping in from the rim, a warm glare from the left, mist; a few stars on a clear night. Still, never
+ * moving: drawn as the shape or the sky changes. */
+function paintSky(cr, sky, ox, oy, w, h, s) {
+    if (sky === 'rain' || sky === 'storm') {
+        if (sky === 'storm') {
+            cr.setSourceRGBA(0.45, 0.5, 0.85, 0.12);
+            cr.rectangle(ox, oy, w, h);
+            cr.fill();
+        }
+        const count = Math.max(4, Math.round(w / (14 * s)));
+        for (let i = 0; i < count; i++) {
+            const x = ox + w * (0.04 + 0.92 * seeded(i + 1));
+            const y = oy + h * (0.12 + 0.7 * seeded(i + 31));
+            const r = (1 + 0.8 * seeded(i + 61)) * s;
+            const len = r * (1.6 + seeded(i + 91));
+            // A drop: a little elongated, lit on its upper left.
+            cr.setSourceRGBA(0.82, 0.9, 1, 0.42);
+            cr.save();
+            cr.translate(x, y);
+            cr.scale(1, len / r);
+            cr.arc(0, 0, r, 0, 2 * Math.PI);
+            cr.restore();
+            cr.fill();
+            cr.setSourceRGBA(1, 1, 1, 0.55);
+            cr.arc(x - r * 0.35, y - len * 0.35, r * 0.35, 0, 2 * Math.PI);
+            cr.fill();
+        }
+    } else if (sky === 'snow' || sky === 'frost') {
+        // Frost: white creeping in from the top and bottom edges, and a few crystals.
+        for (const [from, to] of [[oy, oy + h * 0.45], [oy + h, oy + h * 0.55]]) {
+            const gradient = new Cairo.LinearGradient(0, from, 0, to);
+            gradient.addColorStopRGBA(0, 0.88, 0.94, 1, 0.32);
+            gradient.addColorStopRGBA(1, 0.88, 0.94, 1, 0);
+            cr.setSource(gradient);
+            cr.rectangle(ox, Math.min(from, to), w, Math.abs(to - from));
+            cr.fill();
+        }
+        const count = Math.max(3, Math.round(w / (22 * s)));
+        cr.setSourceRGBA(1, 1, 1, sky === 'snow' ? 0.75 : 0.5);
+        for (let i = 0; i < count; i++) {
+            const x = ox + w * (0.05 + 0.9 * seeded(i + 7));
+            const y = oy + h * (seeded(i + 17) < 0.5 ? 0.18 : 0.82) + (seeded(i + 27) - 0.5) * h * 0.12;
+            cr.arc(x, y, (0.7 + 0.6 * seeded(i + 37)) * s, 0, 2 * Math.PI);
+            cr.fill();
+        }
+    } else if (sky === 'sun') {
+        // A warm glare from the left, as low sun through glass.
+        const gradient = new Cairo.RadialGradient(ox, oy + h * 0.3, 0, ox, oy + h * 0.3, Math.max(w * 0.6, h));
+        gradient.addColorStopRGBA(0, 1, 0.82, 0.48, 0.3);
+        gradient.addColorStopRGBA(1, 1, 0.82, 0.48, 0);
+        cr.setSource(gradient);
+        cr.rectangle(ox, oy, w, h);
+        cr.fill();
+    } else if (sky === 'fog') {
+        // Mist: the glass a little whiter, in soft bands.
+        cr.setSourceRGBA(1, 1, 1, 0.1);
+        cr.rectangle(ox, oy, w, h);
+        cr.fill();
+        for (let i = 0; i < 2; i++) {
+            const y = oy + h * (0.3 + 0.4 * i);
+            const gradient = new Cairo.LinearGradient(0, y - h * 0.2, 0, y + h * 0.2);
+            gradient.addColorStopRGBA(0, 1, 1, 1, 0);
+            gradient.addColorStopRGBA(0.5, 1, 1, 1, 0.12);
+            gradient.addColorStopRGBA(1, 1, 1, 1, 0);
+            cr.setSource(gradient);
+            cr.rectangle(ox, y - h * 0.2, w, h * 0.4);
+            cr.fill();
+        }
+    } else if (sky === 'night') {
+        const count = Math.max(2, Math.round(w / (40 * s)));
+        cr.setSourceRGBA(1, 1, 1, 0.45);
+        for (let i = 0; i < count; i++) {
+            cr.arc(ox + w * (0.08 + 0.84 * seeded(i + 3)), oy + h * (0.2 + 0.6 * seeded(i + 13)), 0.7 * s, 0, 2 * Math.PI);
+            cr.fill();
+        }
+    }
+}
+
 /** Isle's glass (or black) and its fill over it, in any side shape (see shape.js); `place(shape, area)` draws it. */
 class Glass {
     /** `Mask`: the per-corner cut (shape.js `sideMask`) put in place of Isle's own, or null to keep Isle's. */
@@ -184,6 +272,14 @@ class Glass {
         this._shape = null;
         this._shapeKey = null;
         this._area = null;
+    }
+
+    /** The weather drawn on the glass ('rain', 'storm', 'snow', 'frost', 'fog', 'sun', 'night', 'cloud'), or none. */
+    set sky(sky) {
+        if ((sky ?? null) === (this._sky ?? null))
+            return;
+        this._sky = sky ?? null;
+        this.fill.queue_repaint();
     }
 
     setLook(look) {
@@ -219,9 +315,17 @@ class Glass {
             cr.setSourceRGBA(fill[0], fill[1], fill[2], fill[3]);
             outline(cr, ox, oy, w, h, corners, flares, cuts);
             cr.fill();
+            // The weather on the glass (Settings → Weather), cut to the shape.
+            if (this._sky) {
+                cr.save();
+                outline(cr, ox, oy, w, h, corners, flares, cuts);
+                cr.clip();
+                paintSky(cr, this._sky, ox, oy, w, h, scale());
+                cr.restore();
+            }
             // A floating shape stands apart from what is behind it: a hairline round it on black too, as Isle's pill
-            // (one hanging from the top of the screen has none, as Isle's notch).
-            const edge = themeEdge ?? (flush[0] ? null : PILL_EDGE);
+            // (one hanging from the top of the screen, or standing on its bottom, has none, as Isle's notch).
+            const edge = themeEdge ?? (flush[0] || flush[2] ? null : PILL_EDGE);
             if (edge) {
                 const [r, g, b] = edge.color ?? [1, 1, 1];
                 const gradient = new Cairo.LinearGradient(0, oy, 0, oy + h);
@@ -542,11 +646,14 @@ class Morph extends Glass {
         const a = bounds(fitted(from)), b = bounds(fitted(to));
         const m = PATH_MARGIN * scale();
         const x = Math.max(0, Math.min(a.x, b.x) - m);
-        // Hanging from the top of the screen, its top is the blur's top.
+        // Hanging from the top of the screen, its top is the blur's top; standing on the bottom (Settings → Bar at
+        // the bottom), its bottom is the blur's bottom.
         const top = from.flush[0] || to.flush[0];
+        const floor = from.flush[2] || to.flush[2];
         const y = top ? Math.min(a.y, b.y) : Math.max(0, Math.min(a.y, b.y) - m);
         const right = Math.min(global.stage.width, Math.max(a.x + a.width, b.x + b.width) + m);
-        const bottom = Math.min(global.stage.height, Math.max(a.y + a.height, b.y + b.height) + m);
+        const lowest = Math.max(a.y + a.height, b.y + b.height);
+        const bottom = floor ? lowest : Math.min(global.stage.height, lowest + m);
         this._pathArea = {x, y, width: right - x, height: bottom - y};
     }
 
@@ -888,22 +995,30 @@ export default class PanelIslandExtension extends Extension {
                 this._applyTextStyle();
             },
         });
-        // Glass for another extension's panel, grown out of the left capsule (island.js: Island Menu's launcher).
+        // Glass for another extension's panel, grown out of the left capsule, or the middle one (Settings → Island Menu
+        // opens from) while it is shown (island.js: Island Menu's launcher).
         this._islandGlass = new Morph(GlassBackdrop, Mask);
         this._container.add_child(this._islandGlass.actor);
         this._island = new IslandService({
             glass: this._islandGlass,
-            restRect: () => left()?.enabled && left().rect ? left().rect : null,
+            capsule: () => this._islandCapsule(),
+            leftRect: () => left()?.enabled && left().rect ? left().rect : null,
+            restRect: () => {
+                const c = this._islandCapsule();
+                return c?.enabled && c.rect ? c.rect : null;
+            },
             openShape: rect => {
-                const c = left().rect;
-                return this._shape(Main.panel._leftBox, Math.min(rect.x, c.x),
-                    Math.max(rect.x + rect.width, c.x + c.width), rect);
+                const capsule = this._islandCapsule();
+                const c = capsule.rect;
+                return this._shape(capsule.box, Math.min(rect.x, c.x), Math.max(rect.x + rect.width, c.x + c.width), rect);
             },
             hold: on => {
+                const capsule = this._islandCapsule();
                 if (on) {
                     this._endClosing(this._islandGlass);
-                    this._hold(left());
-                } else if (this._leftFree(this._islandGlass)) {
+                    this._hold(capsule);
+                } else if (capsule === left() ? this._leftFree(this._islandGlass)
+                    : this._heldCapsule === capsule && !this._active) {
                     this._hold(null);
                 }
             },
@@ -913,13 +1028,14 @@ export default class PanelIslandExtension extends Extension {
             closePeek: () => this._workspaces?.close(true, 'an island panel opened'),
             // Light or dark as the panel on it asks (its text drawn for one or the other), else as the capsules are.
             isLight: () => this._capsulesLight(),
-            // The left capsule's text and icons with it, so they read on that glass (`_applyTextStyle`); null: as the
+            // The capsule's text and icons with it, so they read on that glass (`_applyTextStyle`); null: as the
             // capsules are again (it closed).
             setLight: light => {
                 const looks = this._lookSet;
                 if (looks)
                     this._islandGlass.setLook(light ?? this._capsulesLight() ? looks.light : looks.dark);
-                this._leftLight = light ?? null;
+                this._islandLight = light ?? null;
+                this._islandSide = Math.max(0, this._capsules?.indexOf(this._islandCapsule()) ?? 0);
                 this._applyTextStyle();
             },
         });
@@ -927,6 +1043,10 @@ export default class PanelIslandExtension extends Extension {
 
         this._leftLight = null;
         this._peekLight = null;
+        this._islandLight = null;
+        this._islandSide = 0;
+        /** The capsule an island panel opened from, kept until it has closed (`_islandCapsule`). */
+        this._islandFrom = null;
         this._watched = new Set();
         this._menus = new Map();
         this._cleared = new Set();
@@ -973,6 +1093,7 @@ export default class PanelIslandExtension extends Extension {
             'changed::centre-capsule', () => this._applySides(),
             'changed::top-bar', () => this._applyBar(),
             'changed::keep-activities', () => this._applyActivities(),
+            'changed::bar-at-bottom', () => this._applyBarPosition(),
             'changed::top-bar-opacity', () => this._applyBar(),
             'changed::flat-buttons', () => this._applyFlat(),
             'changed::theme', () => this._applyTheme(),
@@ -1021,11 +1142,50 @@ export default class PanelIslandExtension extends Extension {
         keepBar(true);
         this._applyBar();
         this._applyActivities();
+        this._applyBarPosition();
+        // Settings → Clock (clock.js): GNOME's clock drawn anew in a capsule.
+        try {
+            this._clock = new CapsuleClock(this._settings, () => this._queue());
+        } catch (e) {
+            console.warn(`[panel-island] The capsule clock could not start, GNOME's clock left as it is: ${e}`);
+            this._clock = null;
+        }
+        // Settings → Weather (capsuleWeather.js): the weather in a capsule, its sky on that capsule's glass.
+        try {
+            this._weather = new CapsuleWeather(this._settings, {
+                onSky: (place, sky) => {
+                    const capsule = this._capsules?.[place === 'centre' ? 2 : 0];
+                    if (capsule)
+                        capsule.sky = sky;
+                },
+                onMoved: () => this._queue(),
+            });
+        } catch (e) {
+            console.warn(`[panel-island] The capsule weather could not start: ${e}`);
+            this._weather = null;
+        }
         // Island Menu's workspace features told the capsule's glass is there (workspaceGlass.js).
         this._workspaces.announce();
         // Logging in, the shell is still setting itself up as extensions start: the bar coloured again once it is done.
         if (Main.layoutManager._startingUp)
             Main.layoutManager.connectObject('startup-complete', () => this._applyBar(), this);
+    }
+
+    /** Settings → Bar at the bottom (barPosition.js): the bar moved, then every shape made again for where it is,
+     * an open menu's glass with it; the middle capsule round the clock Isle gives back off the top. */
+    _applyBarPosition() {
+        if (this._dead)
+            return;
+        const wanted = this._settings.get_boolean('bar-at-bottom');
+        if (wanted === atBottom())
+            return;
+        this._active?.close?.();
+        setBarAtBottom(wanted);
+        this._applySides();
+        this._applyBar();
+        // Drawn anew once the bar is laid out where it now is (its allocation queues that, see `_load`), not now from
+        // where it was.
+        this._capsules.forEach(capsule => (capsule._key = null));
     }
 
     /** Settings → Keep GNOME's Activities button (activities.js). */
@@ -1036,11 +1196,12 @@ export default class PanelIslandExtension extends Extension {
     }
 
     /** Settings → Top bar, while Isle is off (Isle on colours it itself): as Isle's Settings colour it, as set here,
-     * or as the theme has it. */
+     * or as the theme has it. Isle colours it only at the top: with the bar at the bottom it hands it back to the
+     * theme (an opaque bar, over the capsules' glass), so it is coloured here then too. */
     _applyBar() {
         if (this._dead)
             return;
-        setBar(isleRunning() ? null : this._barOpacity());
+        setBar(isleRunning() && !atBottom() ? null : this._barOpacity());
     }
 
     /** The bar's opacity in % as Settings → Top bar says, or null for the theme's own colour. */
@@ -1083,7 +1244,8 @@ export default class PanelIslandExtension extends Extension {
         const mode = this._settings.get_string('centre-capsule');
         if (mode === 'on' || mode === 'off')
             return mode === 'on';
-        return !isleRunning();
+        // Isle gives the clock back to the bar once the bar leaves the top.
+        return !isleRunning() || atBottom();
     }
 
     /** Dark text and icons on light capsules: each side's while its capsule is on and light (stylesheet.css). */
@@ -1093,8 +1255,9 @@ export default class PanelIslandExtension extends Extension {
         const capsules = this._capsulesLight();
         ['left', 'right', 'centre'].forEach((side, i) => {
             const name = `panel-island-light-${side}`;
-            // The left capsule as light or dark as a panel grown out of it asks (island.js), while it is open.
-            const light = i === 0 && this._leftLight !== null ? this._leftLight : capsules;
+            // A capsule as light or dark as a panel grown out of it asks (island.js, the workspace peek), while open.
+            const light = this._islandLight !== null && i === this._islandSide ? this._islandLight
+                : i === 0 && this._leftLight !== null ? this._leftLight : capsules;
             light && this._capsules?.[i]?.enabled ? Main.panel.add_style_class_name(name) : Main.panel.remove_style_class_name(name);
         });
     }
@@ -1108,6 +1271,19 @@ export default class PanelIslandExtension extends Extension {
         // Each side only while its capsule is on: one turned off looks and opens as GNOME's.
         ['left', 'right', 'centre'].forEach((side, i) =>
             set(`panel-island-flat-${side}`, flat && Boolean(this._capsules?.[i]?.enabled)));
+    }
+
+    /** The capsule an island panel (Island Menu's launcher) grows out of: the middle one if Settings say so and it is
+     * shown, else the left one. Kept while a panel is open or still shrinking back, so one never moves between two. */
+    _islandCapsule() {
+        const left = this._capsules?.[0] ?? null;
+        if (this._islandFrom && (this._island?.shown || this._islandGlass?.shown))
+            return this._islandFrom;
+        const centre = this._capsules?.[2];
+        const wanted = this._settings?.get_string('island-panel-from') === 'centre' && centre?.enabled && centre.rect
+            ? centre : left;
+        this._islandFrom = wanted;
+        return wanted;
     }
 
     /** Whether `button`'s side has its capsule on. */
@@ -1255,6 +1431,9 @@ export default class PanelIslandExtension extends Extension {
                     continue;
                 const [cx, cy] = child.get_transformed_position();
                 const [cw, ch] = child.get_transformed_size();
+                // A child not laid out (or laid out wrong) has no place: it would make the whole glass none.
+                if (![cx, cy, cw, ch].every(Number.isFinite))
+                    continue;
                 x1 = Math.min(x1, cx);
                 y1 = Math.min(y1, cy);
                 x2 = Math.max(x2, cx + cw);
@@ -1432,9 +1611,18 @@ export default class PanelIslandExtension extends Extension {
      */
     _shape(box, x1, x2, menu = null) {
         const s = scale();
-        const [, panelY] = Main.panel.get_transformed_position();
+        let [, panelY] = Main.panel.get_transformed_position();
         const [, panelHeight] = Main.panel.get_transformed_size();
         const monitor = this._monitor();
+        // Bar at the bottom: worked out as if the bar were at the top of the monitor turned upside down, then turned
+        // back (shape.js `flipped`). Menus open upwards then, so the same steps fit them.
+        const axis = atBottom() && monitor ? 2 * monitor.y + monitor.height : null;
+        if (axis !== null) {
+            panelY = axis - panelY - panelHeight;
+            if (menu)
+                menu = {...menu, y: axis - menu.y - menu.height};
+        }
+        const done = shape => axis === null ? shape : flipped(shape, axis);
         const gap = Math.round(GAP * s);
         const notch = this._notch();
         const leftSide = box === Main.panel._leftBox;
@@ -1495,15 +1683,15 @@ export default class PanelIslandExtension extends Extension {
             }
         }
         if (centre) {
-            return {x: x1, y, width: Math.max(capsuleHeight, x2 - x1), height, corners: [top, top, bottom, bottom],
-                flares: [ALONG_EDGE, ALONG_EDGE, ALONG_EDGE, ALONG_EDGE], cuts: [0, 0, 0, 0], flush: [notch ? 1 : 0, 0, 0, 0]};
+            return done({x: x1, y, width: Math.max(capsuleHeight, x2 - x1), height, corners: [top, top, bottom, bottom],
+                flares: [ALONG_EDGE, ALONG_EDGE, ALONG_EDGE, ALONG_EDGE], cuts: [0, 0, 0, 0], flush: [notch ? 1 : 0, 0, 0, 0]});
         }
         const corners = leftSide ? [outerTop, top, bottom, outerBottom] : [top, outerTop, outerBottom, bottom];
         const flares = leftSide ? [outerFlare, ALONG_EDGE, ALONG_EDGE, outerFlare]
             : [ALONG_EDGE, outerFlare, outerFlare, ALONG_EDGE];
         const cuts = leftSide ? [outerTopCut, 0, 0, outerCut] : [0, outerTopCut, outerCut, 0];
         const flush = [notch ? 1 : 0, reach && !leftSide ? 1 : 0, 0, reach && leftSide ? 1 : 0];
-        return {x: x1, y, width: Math.max(capsuleHeight, x2 - x1), height, corners, flares, cuts, flush};
+        return done({x: x1, y, width: Math.max(capsuleHeight, x2 - x1), height, corners, flares, cuts, flush});
     }
 
     /** The open menu's glass, as Isle's island opens: one shape from the top of its capsule, which stays its top,
@@ -2070,6 +2258,16 @@ export default class PanelIslandExtension extends Extension {
         this._unwatchSwitch = null;
         this._steadyActivities(false);
         releaseOverview();
+        // GNOME's clock as it was, and the bar back at the top, whatever else.
+        for (const feature of [this._clock, this._weather]) {
+            try {
+                feature?.destroy();
+            } catch (e) {
+                console.warn(`[panel-island] The capsule clock or weather was not taken down cleanly: ${e}`);
+            }
+        }
+        this._clock = this._weather = null;
+        setBarAtBottom(false);
         if (this._dead) {
             // Already gone with the shell's bar: only what is ours to drop.
             Main.extensionManager.disconnectObject(this);

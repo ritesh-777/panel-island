@@ -7,14 +7,22 @@
 // its own (what it shows, its keys, its clicks); this only draws the glass under it.
 //
 //   global.panel_island?.leftRect()   the left capsule's shape {x, y, width, height}, or null (none shown)
+//   global.panel_island?.panelRect?.() the shape of the capsule a panel opens from (Settings: the left or the middle
+//                                     one), with `centre` true for the middle one (then centre the panel under it)
 //   global.panel_island?.open(actor, {light})  the glass grown round `actor`, light or dark as asked (else as the
 //                                     capsules are); false if it cannot be (then draw your own)
 //   global.panel_island?.isLight()    whether the capsules are light now
 //   global.panel_island?.close()      shrunk back into the capsule
+//   global.panel_island?.atBottom?.() whether the bar is at the bottom (Settings → Bar at the bottom): a panel then
+//                                     opens above the capsule, its glass growing up round it
 
 import Clutter from 'gi://Clutter';
 import Meta from 'gi://Meta';
 import St from 'gi://St';
+
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+
+import {atBottom} from './barPosition.js';
 
 const RADIUS = 18;
 
@@ -33,13 +41,20 @@ export class IslandService {
         this.api = {
             version: 1,
             leftRect: () => {
-                const rect = this._host.restRect();
+                const rect = this._host.leftRect?.() ?? this._host.restRect();
                 return rect ? {x: rect.x, y: rect.y, width: rect.width, height: rect.height} : null;
+            },
+            panelRect: () => {
+                const rect = this._host.restRect();
+                const capsule = this._host.capsule?.();
+                return rect ? {x: rect.x, y: rect.y, width: rect.width, height: rect.height,
+                    centre: Boolean(capsule && capsule.box === Main.panel._centerBox)} : null;
             },
             open: (actor, options = {}) => this.open(actor, options),
             isLight: () => Boolean(this._host.isLight?.()),
             close: () => this.close(),
             isOpen: () => Boolean(this._actor),
+            atBottom: () => atBottom(),
         };
         global.panel_island = this.api;
     }
