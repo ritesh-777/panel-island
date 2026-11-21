@@ -118,13 +118,13 @@ function isSwitchGroup(actor) {
 let onBattery = false;
 
 /** Settings → Glass during workspace switches: 'always' still (the default), 'battery' still on battery only,
- * 'never' (the glass follows the slide live). */
+ * 'never' live at full resolution, 'live-efficient' live with a smaller shared blur. */
 let switchGlass = 'always';
 const stillDuringSwitch = () => switchGlass === 'always' || (switchGlass === 'battery' && onBattery);
 
 /** Sets it (`mode` as above); the glass looked at again at once. */
 export function setSwitchGlass(mode) {
-    const next = ['always', 'battery', 'never'].includes(mode) ? mode : 'always';
+    const next = ['always', 'battery', 'never', 'live-efficient'].includes(mode) ? mode : 'always';
     if (next === switchGlass)
         return;
     switchGlass = next;
@@ -182,7 +182,7 @@ function syncWallpaper(backdrop) {
  * the bar. Each sized as its scene: a copy draws its source scaled to its own size, and these groups are sized by
  * constraints (the screen's), not by what they ask for, so a copy left to its own size drew them at nothing.
  */
-function syncScenes(backdrop, want) {
+function syncScenes(backdrop, want, updateShared = true) {
     const layers = backdrop._layers;
     const held = backdrop._panelIslandScenes ??= new Map();
     for (const [source, copy] of held) {
@@ -231,7 +231,8 @@ function syncScenes(backdrop, want) {
         backdrop._panelIslandWindowsId = 0;
     }
     syncWallpaper(backdrop);
-    syncShared();
+    if (updateShared)
+        syncShared();
 }
 
 /*
@@ -261,8 +262,11 @@ const canShare = backdrop => (isOurs(backdrop) || isleDoes.overview) && backdrop
 const sharesSwitch = backdrop => Boolean(backdrop) && sharing() && backdrop._on && shown(backdrop) &&
     !backdrop._panelIslandNoShare && canShare(backdrop);
 
-/** A shared copy's key: its blur's look. */
-const keyOf = backdrop => `${backdrop._blur.radius}:${backdrop._blur.brightness}`;
+/** Reduce only the shared scene texture; a tiny blur is kept at full resolution. */
+function sampleDivisor(backdrop) {
+    return switchGlass === 'live-efficient' && backdrop._blur.radius >= 2 ? 2 : 1;
+}
+const keyOf = backdrop => `${backdrop._blur.radius}:${backdrop._blur.brightness}:${sampleDivisor(backdrop)}`;
 
 /** `backdrop` back to its own frame (its clone of a shared copy taken out). */
 function dropShared(backdrop) {
@@ -309,13 +313,16 @@ function openShared(backdrop) {
         Main.layoutManager.uiGroup.add_child(holder);
     }
     const frame = new St.Widget({clip_to_allocation: true, reactive: false});
+    const divisor = sampleDivisor(backdrop);
     const layers = new Clutter.Actor();
+    layers.set_pivot_point(0, 0);
+    layers.set_scale(1 / divisor, 1 / divisor);
     frame.add_child(layers);
-    const blur = new Shell.BlurEffect({mode: Shell.BlurMode.ACTOR, radius: backdrop._blur.radius,
+    const blur = new Shell.BlurEffect({mode: Shell.BlurMode.ACTOR, radius: Math.round(backdrop._blur.radius / divisor),
         brightness: backdrop._blur.brightness});
     frame.add_effect(blur);
     holder.add_child(frame);
-    return {frame, layers, blur, copies: new Map(), strip: null};
+    return {frame, layers, blur, divisor, copies: new Map(), strip: null};
 }
 
 /** Whether `a` and `b` ({x, y, width, height}) are the same. */
@@ -324,13 +331,12 @@ const sameRect = (a, b) => Boolean(a && b) && ['x', 'y', 'width', 'height'].ever
 /** The shared copies made, sized and given to the glass that shows them, as a Live switch goes on; all taken back
  * as it ends (or as the glass shows something else). */
 function syncShared() {
-    const users = [...known].filter(sharesSwitch);
-    for (const backdrop of known) {
-        if (!users.includes(backdrop))
-            dropShared(backdrop);
-    }
     const byKey = new Map();
-    for (const backdrop of users) {
+    for (const backdrop of known) {
+        if (!sharesSwitch(backdrop)) {
+            dropShared(backdrop);
+            continue;
+        }
         const key = keyOf(backdrop);
         if (!byKey.has(key))
             byKey.set(key, []);
@@ -378,14 +384,18 @@ function syncSharedGroup(key, group) {
         }
     }
     const rects = group.map(backdrop => backdrop._frameRect()).filter(Boolean);
-    const x0 = Math.floor(Math.min(...rects.map(r => r.x))), y0 = Math.floor(Math.min(...rects.map(r => r.y)));
-    const x1 = Math.ceil(Math.max(...rects.map(r => r.x + r.width)));
-    const y1 = Math.ceil(Math.max(...rects.map(r => r.y + r.height)));
-    const strip = {x: x0, y: y0, width: Math.max(1, x1 - x0), height: Math.max(1, y1 - y0)};
+    // Align the strip to a fixed stage-space sampling grid, including on monitors at negative coordinates.
+    // Clones keep the full strip size; their smaller source is enlarged before each capsule's own mask.
+    const d = entry.divisor;
+    const x0 = d * Math.floor(Math.min(...rects.map(r => r.x)) / d);
+    const y0 = d * Math.floor(Math.min(...rects.map(r => r.y)) / d);
+    const x1 = d * Math.ceil(Math.max(...rects.map(r => r.x + r.width)) / d);
+    const y1 = d * Math.ceil(Math.max(...rects.map(r => r.y + r.height)) / d);
+    const strip = {x: x0, y: y0, width: Math.max(d, x1 - x0), height: Math.max(d, y1 - y0)};
     if (!sameRect(entry.strip, strip)) {
         entry.strip = strip;
-        entry.frame.set_size(strip.width, strip.height);
-        entry.layers.set_position(-strip.x, -strip.y);
+        entry.frame.set_size(strip.width / d, strip.height / d);
+        entry.layers.set_position(-strip.x / d, -strip.y / d);
     }
     // The scene's groups, bottom first, as the screen stacks them.
     const want = [...switching];
@@ -451,10 +461,15 @@ function clearScenes(backdrop) {
 function syncAll() {
     for (const backdrop of known) {
         try {
-            syncScenes(backdrop, scenesFor(backdrop));
+            syncScenes(backdrop, scenesFor(backdrop), false);
         } catch (e) {
             console.warn(`[panel-island] Glass over GNOME's own scene: ${e}`);
         }
+    }
+    try {
+        syncShared();
+    } catch (e) {
+        console.warn(`[panel-island] Shared glass after a scene update: ${e}`);
     }
 }
 

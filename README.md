@@ -158,7 +158,10 @@ Shown only with Isle installed. Each one changes Isle as it runs and never its f
 - **Keep Isle's glass in the overview** — Isle's island stays blurred in the overview and while switching
   workspaces, blurring what is really behind it.
 - **Lighter blur updates** — A window just below the bar, a video playing in it, no longer has Isle's glass blurred
-  again every frame.
+  again every frame. On battery, Isle's music bars also move at most 30 times a second (at the same speed), and its
+  lyrics no longer flood the log before the island is laid out.
+- **Isle without bounce** — Isle's island grows and shrinks as quickly as before, but no longer goes past its size
+  and springs back.
 - **Weather on Isle's Calendar page** — Today's weather beside the date, and the day's weather in full on a click,
   for the place set in GNOME Weather.
 - **Smooth Isle's notch corners** — Isle's notch drawn with Panel Island's own corners, without the seam where its

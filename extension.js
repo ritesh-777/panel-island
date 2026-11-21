@@ -28,6 +28,8 @@ import {followShared, isSwitching, keepInOverview, onSwitch, releaseOverview, se
 import {setIsleSolidEdge, smoothIsleCorners} from './isleCorners.js';
 import {addIsleWeather} from './isleWeather.js';
 import {lightIsle} from './isleLight.js';
+import {tuneIsle} from './isleTuning.js';
+import {calmIsle} from './isleCalm.js';
 import {SCHEME_CLASS, loadMenuSchemes} from './menuScheme.js';
 import {LIGHT_EDGE, lightBlur, lightFill} from './light.js';
 import {ALONG_EDGE, BL, BR, DOWN_SIDE, TL, TR, bounds, fitted, lerpShape, outline, sideMask} from './shape.js';
@@ -100,6 +102,21 @@ const isleRunning = () => {
 const scale = () => St.ThemeContext.get_for_stage(global.stage).scale_factor;
 /** How far (CSS px) a capsule's items may wobble during a workspace switch and the capsule stay as it was. */
 const SWITCH_SLACK = 2;
+
+/** Until when (µs, monotonic) the left capsule follows its items every frame, no wobble held still: just after the
+ * number of workspaces changed, while GNOME's workspace dots grow or shrink for it (often during a switch, as an empty
+ * workspace left goes). A real change, then, not a wobble: followed smoothly, not in jumps after it. */
+let followUntil = 0;
+const followingRealChange = () => GLib.get_monotonic_time() < followUntil;
+
+/** How many workspaces there were as the switch now sliding began (-1: none). A workspace added or taken away since
+ * (GNOME takes an empty one away as it is left, its dots shrinking a pixel or two at a time, for longer than any fixed
+ * window), and what changes width through the rest of that switch is real: no wobble held still at all. */
+let switchCount = -1;
+const countChangedThisSwitch = () => switchCount >= 0 && global.workspace_manager.n_workspaces !== switchCount;
+
+/** How long that lasts after a change (ms): GNOME's dots animate for about a quarter of a second. */
+const FOLLOW_MS = 700;
 const animating = () => St.Settings.get().enable_animations;
 const lerp = (a, b, t) => a + (b - a) * t;
 const easeOutBack = t => 1 + 2.1 * (t - 1) ** 3 + 1.1 * (t - 1) ** 2;
@@ -469,7 +486,7 @@ class Capsule extends Glass {
         // with it. Held still through the switch, so the capsule does not dance (and, held still in Still mode, is not
         // blurred again for it); anything moving further, a real change, followed at once; exact again once it ends.
         const held = this._steadyExtent;
-        if (extent && held && isSwitching()) {
+        if (extent && held && isSwitching() && !followingRealChange() && !countChangedThisSwitch()) {
             const slack = SWITCH_SLACK * scale();
             if (Math.abs(extent[0] - held[0]) <= slack && Math.abs(extent[1] - held[1]) <= slack)
                 extent = held;
@@ -699,6 +716,15 @@ export default class PanelIslandExtension extends Extension {
                     const [{CalendarPage}, {label}, {VERTICAL}, Format] = await Promise.all(
                         ['pages/calendar.js', 'widgets.js', 'compat.js', 'format.js'].map(path => import(uri(path))));
                     this._isleCalendar = {CalendarPage, helpers: {label, VERTICAL, Format}};
+                    // Isle's music bars and lyrics, for Settings → Lighter blur updates (isleTuning.js).
+                    try {
+                        const [{Bars}, {LyricsPane}] = await Promise.all(
+                            ['widgets.js', 'pages/lyrics.js'].map(path => import(uri(path))));
+                        this._isleTunable = {Bars, LyricsPane};
+                    } catch (e) {
+                        console.warn(`[panel-island] Isle's bars and lyrics not reached, left as Isle has them: ${e}`);
+                        this._isleTunable = null;
+                    }
                     // Isle's island, for Settings → Light Isle (isleLight.js).
                     try {
                         this._isleIslandClass = (await import(uri('island.js'))).Island ?? null;
@@ -706,6 +732,14 @@ export default class PanelIslandExtension extends Extension {
                     } catch (e) {
                         console.warn(`[panel-island] Isle's island not reached, it stays dark: ${e}`);
                         this._isleIslandClass = null;
+                    }
+                    // Isle's springs, for Settings → Isle without bounce (isleCalm.js).
+                    try {
+                        const {Spring, SpringDriver} = await import(uri('spring.js'));
+                        this._isleSprings = {Spring, SpringDriver};
+                    } catch (e) {
+                        console.warn(`[panel-island] Isle's springs not reached, its island bounces as it does: ${e}`);
+                        this._isleSprings = null;
                     }
                 } catch (e) {
                     console.warn(`[panel-island] Isle's Calendar page not reached, no weather on it: ${e}`);
@@ -795,6 +829,7 @@ export default class PanelIslandExtension extends Extension {
             closeDelay: () => this._settings.get_int('close-delay'),
             // Its edge lit in the accent colour (`Capsule.setAttention`).
             setAttention: glow => left()?.setAttention(glow ? {...glow, rgb: accent()} : null),
+            strength: () => this._tint(),
             // Light or dark as Island Menu asks (its own Style), the left capsule's text with it; null: as ours.
             setLight: light => {
                 this._peekLight = light ?? null;
@@ -869,6 +904,11 @@ export default class PanelIslandExtension extends Extension {
         Main.layoutManager.panelBox.connectObject('notify::allocation', queue, 'notify::translation-y', queue,
             'notify::visible', queue, 'notify::opacity', queue, this);
         Main.layoutManager.connectObject('monitors-changed', queue, this);
+        // A workspace added or taken away (GNOME's dynamic workspaces, often with no switch at all): the left capsule's
+        // items (GNOME's workspace dots, Island Menu's numbers) change width, the dots over a short animation. Measured
+        // again at once and as that animation settles, so the capsule never keeps its old size.
+        global.workspace_manager.connectObject('notify::n-workspaces', () => this._remeasureSoon(), this);
+        this._watchDots();
         St.ThemeContext.get_for_stage(global.stage).connectObject('notify::scale-factor', queue, this);
         // GNOME's style switched (Settings → Appearance): the glass with it, where it follows it.
         St.Settings.get().connectObject('notify::color-scheme', () => this._applyTheme(), this);
@@ -907,6 +947,7 @@ export default class PanelIslandExtension extends Extension {
             'changed::isle-weather', () => this._applyIslePatch(),
             'changed::isle-edge-blur', () => this._applyIslePatch(),
             'changed::patch-isle-lighter', () => this._applyIslePatch(),
+            'changed::patch-isle-calm', () => this._applyIslePatch(),
             'changed::patch-isle-light', () => this._applyIslePatch(),
             'changed::switch-glass', () => setSwitchGlass(this._settings.get_string('switch-glass')), this);
         setSwitchGlass(this._settings.get_string('switch-glass'));
@@ -1062,13 +1103,41 @@ export default class PanelIslandExtension extends Extension {
         for (const box of this._boxes) {
             for (const child of box.get_children()) {
                 this._watched.add(child);
-                child.connectObject('notify::allocation', () => this._queue(), 'notify::visible', () => this._queue(),
+                // A size told during GNOME's layout step: measured right after it (`_measureSoon`), not "before the next
+                // redraw", which GNOME, already drawing this frame, does not ask for, so it waited for anything else
+                // to redraw the screen (the capsule a moment or more behind what it holds).
+                child.connectObject('notify::allocation', () => this._measureSoon(), 'notify::visible', () => this._queue(),
                     'destroy', () => this._watched.delete(child), this);
             }
         }
         this._watchMenus();
         this._workspaces?.watchTriggers();
         this._queue();
+    }
+
+    /** GNOME's workspace dots (the Activities button's row of them): a dot taken away shrinks to nothing first and only
+     * then leaves the row, half a second after the workspace went, the row a dot narrower in that frame. Nothing else
+     * says so in time (the capsule stayed a dot too wide until it was measured again), so a dot coming or going is
+     * measured right after that frame's layout. */
+    _watchDots() {
+        this._dotRow?.disconnectObject(this);
+        this._dotRow = null;
+        const find = actor => {
+            for (const child of actor?.get_children?.() ?? []) {
+                if (child.get_children().some(dot => dot.constructor?.name === 'WorkspaceDot'))
+                    return child;
+                const found = find(child);
+                if (found)
+                    return found;
+            }
+            return null;
+        };
+        const row = find(Main.panel.statusArea?.activities);
+        if (!row)
+            return;
+        this._dotRow = row;
+        const measure = () => this._measureSoon();
+        row.connectObject('child-added', measure, 'child-removed', measure, 'destroy', () => (this._dotRow = null), this);
     }
 
     /** Every menu of a button in the left or right box. */
@@ -1242,6 +1311,26 @@ export default class PanelIslandExtension extends Extension {
         } else if (!corners && this._unsmoothIsle) {
             this._unsmoothIsle();
             this._unsmoothIsle = null;
+        }
+        // Settings → Lighter blur updates, for Isle's music bars and lyrics too (isleTuning.js).
+        const tune = !this._dead && lighter && this._isleTunable;
+        if (tune && !this._untuneIsle) {
+            this._untuneIsle = tuneIsle(this._isleTunable);
+            if (!this._untuneIsle)
+                console.warn("[panel-island] Isle's bars and lyrics have changed: left as Isle has them");
+        } else if (!tune && this._untuneIsle) {
+            this._untuneIsle();
+            this._untuneIsle = null;
+        }
+        // Settings → Isle without bounce: the island's springs damped not to overshoot (isleCalm.js).
+        const calm = !this._dead && this._settings?.get_boolean('patch-isle-calm') && this._isleSprings;
+        if (calm && !this._uncalmIsle) {
+            this._uncalmIsle = calmIsle(this._isleSprings);
+            if (!this._uncalmIsle)
+                console.warn("[panel-island] Isle's springs have changed: its island bounces as it does");
+        } else if (!calm && this._uncalmIsle) {
+            this._uncalmIsle();
+            this._uncalmIsle = null;
         }
         // Settings → Light Isle: Isle's island light as Panel Island's Style says (isleLight.js).
         const light = !this._dead && this._settings?.get_boolean('patch-isle-light') && this._glassIsIsle &&
@@ -1727,6 +1816,10 @@ export default class PanelIslandExtension extends Extension {
         this._menuSchemes?.use(light !== gnomeLight() ? (light ? 'light' : 'dark') : null);
         this._cleared.forEach(menu => this._schemeMenu(menu));
         this._peekGlass?.setLook((this._peekLight ?? this._capsulesLight()) ? looks.light : looks.dark);
+        // Island Menu's numbers shaded as strongly as the glass is now (its workspaces.js).
+        try {
+            global.island_menu_workspaces?.lookChanged?.();
+        } catch {}
         this._islandGlass?.setLook(look);
         this._applyTextStyle();
         if (this._morph.shown && this._morph.rect)
@@ -1748,10 +1841,25 @@ export default class PanelIslandExtension extends Extension {
             if (!button || this._steadied || !button.mapped)
                 return;
             const held = this._steadied = {button, width: button.width, moved: new Map()};
+            switchCount = global.workspace_manager.n_workspaces;
             const follow = () => {
                 if (this._steadied !== held)
                     return;
                 try {
+                    // A real change (a workspace added or taken away during the switch: its dots growing or shrinking,
+                    // a whole dot over a few frames): not a wobble to hide. Followed as it goes: the items given back
+                    // their own place, held anew from this width, and the capsule measured again, so it grows or
+                    // shrinks with it, every frame.
+                    if (followingRealChange() || countChangedThisSwitch() ||
+                        Math.abs(held.width - button.width) > SWITCH_SLACK * scale()) {
+                        for (const [item, own] of held.moved) {
+                            if (item.translation_x !== own)
+                                item.translation_x = own;
+                        }
+                        held.width = button.width;
+                        this._measureSoon();
+                        return;
+                    }
                     const delta = held.width - button.width;
                     const parent = button.get_parent();
                     const after = parent ? parent.get_children().slice(parent.get_children().indexOf(button) + 1) : [];
@@ -1775,6 +1883,7 @@ export default class PanelIslandExtension extends Extension {
         }
         const held = this._steadied;
         this._steadied = null;
+        switchCount = -1;
         if (!held)
             return;
         try {
@@ -1787,6 +1896,8 @@ export default class PanelIslandExtension extends Extension {
             } catch {}
         }
         held.moved.clear();
+        // Put back where they are: a shift, not a new allocation, so nothing else tells the capsule; measured again here.
+        this._queue();
     }
 
     _queue() {
@@ -1796,6 +1907,43 @@ export default class PanelIslandExtension extends Extension {
             this._later = 0;
             this._update();
             return false;
+        });
+    }
+
+    /** The capsules measured again now and twice more as GNOME's workspace dots settle (a later step of their animation
+     * could otherwise go unnoticed); if the left one was still at its old size by then, put right and said in the log. */
+    _remeasureSoon() {
+        // Followed every frame while the dots change (see `followUntil`), then measured once more as they settle.
+        followUntil = GLib.get_monotonic_time() + FOLLOW_MS * 1000;
+        this._queue();
+        (this._remeasureIds ??= []).forEach(id => GLib.source_remove(id));
+        this._remeasureIds = [FOLLOW_MS + 100].map(ms => {
+            const id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
+                this._remeasureIds = this._remeasureIds.filter(other => other !== id);
+                if (this._dead || !this._capsules)
+                    return GLib.SOURCE_REMOVE;
+                const left = this._capsules[0];
+                const before = left?.rect ? `${Math.round(left.rect.x)}+${Math.round(left.rect.width)}` : '';
+                this._update();
+                const after = left?.rect ? `${Math.round(left.rect.x)}+${Math.round(left.rect.width)}` : '';
+                if (before && after && before !== after)
+                    console.log(`[panel-island] The left capsule was still at its old size after a workspace change: ${before} → ${after}`);
+                return GLib.SOURCE_REMOVE;
+            });
+            return id;
+        });
+    }
+
+    /** Measured once GNOME has laid the bar out (a high-priority idle runs right after the frame's layout), so the
+     * capsule takes its new size in the very next frame. */
+    _measureSoon() {
+        if (this._dead || this._measureId || !this._container)
+            return;
+        this._measureId = GLib.idle_add(GLib.PRIORITY_HIGH, () => {
+            this._measureId = 0;
+            if (!this._dead && this._container)
+                this._update();
+            return GLib.SOURCE_REMOVE;
         });
     }
 
@@ -1810,6 +1958,14 @@ export default class PanelIslandExtension extends Extension {
 
     disable() {
         this._alive = false;
+        (this._remeasureIds ?? []).forEach(id => GLib.source_remove(id));
+        this._remeasureIds = [];
+        if (this._measureId)
+            GLib.source_remove(this._measureId);
+        this._measureId = 0;
+        global.workspace_manager.disconnectObject(this);
+        this._dotRow?.disconnectObject(this);
+        this._dotRow = null;
         // Isle as it was, whatever else.
         this._unpatchIsle?.();
         this._unpatchIsle = null;
@@ -1819,6 +1975,11 @@ export default class PanelIslandExtension extends Extension {
         this._unweatherIsle = null;
         this._unlightIsle?.undo();
         this._unlightIsle = null;
+        this._untuneIsle?.();
+        this._untuneIsle = null;
+        this._uncalmIsle?.();
+        this._uncalmIsle = null;
+        this._isleSprings = null;
         this._menuSchemes?.unload();
         this._menuSchemes = null;
         this._isleIslandClass = null;

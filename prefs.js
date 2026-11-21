@@ -222,6 +222,7 @@ export default class PanelIslandPreferences extends ExtensionPreferences {
         switching.add(choiceRow(settings, 'switch-glass', 'Glass during workspace switches', [
             ['always', 'Still', 'Held still as a workspace slides, blurred again once it stops: much lighter'],
             ['battery', 'Still on battery', 'Held still on battery, following the slide on mains power'],
+            ['live-efficient', 'Live (efficient)', 'Follow every frame using a smaller shared blur'],
             ['never', 'Live', 'Follows the slide as it moves: smoothest, heaviest'],
         ]));
         page.add(switching);
@@ -235,6 +236,8 @@ export default class PanelIslandPreferences extends ExtensionPreferences {
             'Isle\'s island stays blurred in the overview and as workspaces switch, blurring what is really behind it'));
         isle.add(switchRow(settings, 'patch-isle-lighter', 'Lighter blur updates',
             'A window just below the bar, a video in it, no longer has Isle\'s glass blurred again every frame'));
+        isle.add(switchRow(settings, 'patch-isle-calm', 'Isle without bounce',
+            'Isle\'s island grows and shrinks as quickly, without going past its size and springing back'));
         isle.add(switchRow(settings, 'patch-isle-light', 'Light Isle',
             'Isle\'s island light too when the Style above is light: its glass, text and icons'));
         isle.add(switchRow(settings, 'isle-weather', 'Weather on Isle\'s Calendar page',

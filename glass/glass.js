@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 zickrian
 //
-// Copied unchanged from Isle 1.7.3 (https://github.com/zickrian/isle) for when Isle is not installed, except the
-// GObject type names, made this extension's own so this copy and Isle's can both load in one session.
+// Adapted from Isle 1.7.3 (https://github.com/zickrian/isle), with extension-specific GObject names
+// and a window-allocation filter for the backdrop.
 
 // The glass theme's backdrop: copies of what lies under the island (wallpaper, windows, top bar), each redrawn
 // only there, blurred by GNOME Shell's blur and cut to the island's shape by a shader.
@@ -403,6 +403,23 @@ class GlassBackdrop extends St.Widget {
         });
     }
 
+    /** Allocation signals arrive even for a window moving wholly outside the blur. A previous
+     * clone must be updated or removed. A new one is possible only inside the padded frame.
+     * Override-redirect windows affect occlusion separately and always take the full path. */
+    _windowAllocated(actor) {
+        if (this._later || this._windows.has(actor) || !actor.meta_window || actor.meta_window.is_override_redirect()) {
+            this._queueSync();
+            return;
+        }
+        const frame = this._frameRect();
+        if (!frame || overlaps(actor, frame)) {
+            this._queueSync();
+            return;
+        }
+        // The glass itself may move there before this window emits another signal.
+        this._places = null;
+    }
+
     /** The windows that may be copied, in their stacking order, with where each is: read again only after one changed
      * (see `_queueSync`), not on every frame of the island moving. */
     _windowPlaces() {
@@ -415,7 +432,7 @@ class GlassBackdrop extends St.Widget {
                 continue;
             this._watched.add(actor);
             actor.connectObject(
-                'notify::allocation', () => this._queueSync(),
+                'notify::allocation', () => this._windowAllocated(actor),
                 'notify::visible', () => this._queueSync(),
                 // Its surfaces can be replaced (an X11 window going full screen): copied anew.
                 'child-added', () => this._queueSync(),
@@ -426,8 +443,12 @@ class GlassBackdrop extends St.Widget {
                     this._queueSync();
                 }, this);
             // At once, not before the next frame: the frame it moves in may already show what it uncovers.
+            const uncover = () => {
+                if (this._windows.size)
+                    this._unprune();
+            };
             for (const signal of UNCOVERING)
-                actor.connectObject(signal, () => this._unprune(), this);
+                actor.connectObject(signal, uncover, this);
         }
         const place = actor => ({actor, x: actor.x, y: actor.y, width: actor.width, height: actor.height});
         const shown = actors.filter(actor => actor.visible);

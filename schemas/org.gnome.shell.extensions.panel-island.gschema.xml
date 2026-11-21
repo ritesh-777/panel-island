@@ -82,10 +82,11 @@
         <choice value="always"/>
         <choice value="battery"/>
         <choice value="never"/>
+        <choice value="live-efficient"/>
       </choices>
       <default>'always'</default>
       <summary>Glass during workspace switches</summary>
-      <description>always: the glass held still as a workspace switch slides (it blurs again once it is over), much lighter on the CPU. battery: held still on battery only, live on mains. never: the glass follows the slide live.</description>
+      <description>always: the glass held still as a workspace switch slides (it blurs again once it is over), much lighter on the CPU. battery: held still on battery only, live on mains. never: the glass follows the slide live. live-efficient: the shared blur follows every frame at half resolution.</description>
     </key>
     <key name="color-style" type="s">
       <choices>
@@ -229,6 +230,11 @@
       <default>false</default>
       <summary>Lighter blur updates for Isle</summary>
       <description>Isle's glass copies every window its blur reaches, a margin below the bar too, so a window there (a video in it) has it blurred again every frame. On: only windows under the glass itself are copied, as for this extension's own glass. Changed as Isle runs, its files are not; off, or if Isle has changed so this cannot apply, Isle is as it is.</description>
+    </key>
+    <key name="patch-isle-calm" type="b">
+      <default>false</default>
+      <summary>Isle without bounce</summary>
+      <description>Isle's island grows and shrinks on springs that overshoot a little and spring back. On: they are damped just enough not to (as Isle's own corners are), as quick to arrive. Changed as Isle runs, its files are not; off, or if Isle has changed so this cannot apply, Isle is as it is.</description>
     </key>
     <key name="tint-like-isle" type="b">
       <default>true</default>

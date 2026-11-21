@@ -16,6 +16,8 @@
 //   opening(), closing()  {ms, ease}, as Panel Island's menus open and close
 //   closeDelay()          Panel Island's Close delay, in ms
 //   setAttention(glow)    the capsule's edge lit ({width, pulse}) or put out (null)
+//   strength()            the glass's strength now, 0 clear to 100 strong (Island Menu told as it changes:
+//                         `global.island_menu_workspaces.lookChanged()`)
 //   setLight(light)       the glass, and the left capsule's text while it is open, light (true) or dark (false), as
 //                         Island Menu's own Style says; null: as Panel Island's capsules are
 //   attach(client)        the one whose peek it is: {shown, close(now, why), watchTriggers()}; detach(client)
@@ -48,6 +50,8 @@ export class WorkspaceGlass {
             closeDelay: () => host.closeDelay(),
             setAttention: glow => host.setAttention(glow),
             setLight: light => host.setLight(light),
+            // The glass's strength now (0 clear to 100 strong), for what Island Menu draws on it (its numbers' shade).
+            strength: () => host.strength?.() ?? 50,
             attach: client => {
                 this._client = client;
             },
