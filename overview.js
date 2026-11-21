@@ -160,6 +160,37 @@ function unwatchPower() {
     onBattery = false;
 }
 
+/**
+ * Where `source`, a scene, is on the screen and how big. A switch's group is the monitor it slides on: read from that,
+ * not from the group, which is sized by a constraint only as it is first laid out. Until then it says how wide all its
+ * workspaces side by side are, so a copy sized from it then drew the scene stretched that much (most at the first
+ * workspace, the others all to its right: its wallpaper seen moving under the glass as a swipe there went nowhere).
+ */
+function sceneBox(source) {
+    const m = isSwitchGroup(source) ? source._monitor : null;
+    if (m && [m.x, m.y, m.width, m.height].every(Number.isFinite) && m.width > 0 && m.height > 0)
+        return {x: m.x, y: m.y, width: m.width, height: m.height};
+    return null;
+}
+
+/** `copy` of the scene `source` put where it is and sized as it is (see `sceneBox`); other scenes follow their size. */
+function placeCopy(copy, source) {
+    const box = sceneBox(source);
+    if (!box) {
+        if (!copy._panelIslandBound) {
+            copy._panelIslandBound = true;
+            copy.add_constraint(new Clutter.BindConstraint({source, coordinate: Clutter.BindCoordinate.SIZE}));
+        }
+        if (copy.x !== source.x || copy.y !== source.y)
+            copy.set_position(source.x, source.y);
+        return;
+    }
+    if (copy.x !== box.x || copy.y !== box.y)
+        copy.set_position(box.x, box.y);
+    if (copy.width !== box.width || copy.height !== box.height)
+        copy.set_size(box.width, box.height);
+}
+
 /** The scenes GNOME draws now, for `backdrop` (Isle's not given a switch's on battery). */
 function scenes(backdrop = null) {
     // Ours, sharing the switch's one blur (`syncShared`): no copy of its own.
@@ -193,11 +224,12 @@ function syncScenes(backdrop, want, updateShared = true) {
     }
     if (layers) {
         for (const source of want) {
-            if (held.has(source))
+            if (held.has(source)) {
+                placeCopy(held.get(source), source);
                 continue;
+            }
             const copy = new Clutter.Clone({source, reactive: false});
-            copy.add_constraint(new Clutter.BindConstraint({source, coordinate: Clutter.BindCoordinate.SIZE}));
-            copy.set_position(source.x, source.y);
+            placeCopy(copy, source);
             if (backdrop._bar?.get_parent?.() === layers)
                 layers.insert_child_below(copy, backdrop._bar);
             else
@@ -409,12 +441,10 @@ function syncSharedGroup(key, group) {
         let copy = entry.copies.get(source);
         if (!copy) {
             copy = new Clutter.Clone({source, reactive: false});
-            copy.add_constraint(new Clutter.BindConstraint({source, coordinate: Clutter.BindCoordinate.SIZE}));
             entry.layers.add_child(copy);
             entry.copies.set(source, copy);
         }
-        if (copy.x !== source.x || copy.y !== source.y)
-            copy.set_position(source.x, source.y);
+        placeCopy(copy, source);
     }
     for (const backdrop of group) {
         let clone = backdrop._panelIslandShared;
