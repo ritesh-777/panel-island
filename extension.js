@@ -62,6 +62,8 @@ const FALLBACK_FILL = [0, 0, 0, 0.55];
 /** A menu opening: the glass grows from its button with a little overshoot; its content fades in once it is mostly there. */
 const OPEN_MS = 440;
 const CLOSE_MS = 300;
+/** How long (ms) a menu followed by its glass (`Morph.retarget`) stays cut to it after its last change. */
+const FOLLOW_SETTLE_MS = 160;
 /** Opening on hover, as Isle's island does (its `open-on` and `hover-delay` settings): the pointer resting this long
  * on a button opens its menu, and its leaving both for this long closes it (Isle's COLLAPSE_DELAY_MS). */
 const HOVER_DELAY_MS = 120;
@@ -524,6 +526,11 @@ class Morph extends Glass {
         this._from = this._to = null;
         this._timeline = null;
         this._pathArea = null;
+        this._reveal = null;
+        this._revealHad = null;
+        /** The menu it is open for, cut to it as it follows that menu's changes (`retarget`); its timer. */
+        this._follow = null;
+        this._settle = 0;
     }
 
     get shown() {
@@ -590,6 +597,8 @@ class Morph extends Glass {
         actor.connectObject('destroy', () => {
             this._reveal = null;
             this._revealHad = null;
+            if (this._follow === actor)
+                this._endFollow();
         }, this);
     }
 
@@ -620,9 +629,11 @@ class Morph extends Glass {
 
     /** Moves from `from` to `to` over `ms` along `ease`; `fade` 'in' or 'out' brings its opacity with it. With
      * `target` (a function), where it goes is asked again every frame: a menu still being laid out or placed. */
-    animate(from, to, {ms, ease, fade = null, onDone = null, target = null, reveal = null}) {
+    animate(from, to, {ms, ease, fade = null, onDone = null, target = null, reveal = null, follow = null}) {
         this._stop();
+        this._endFollow();
         this._endReveal();
+        this._follow = follow;
         this._from = from;
         this._to = to;
         this._target = target;
@@ -655,6 +666,11 @@ class Morph extends Glass {
             if (this._timeline !== timeline)
                 return;
             this._timeline = null;
+            // Freed once this frame is over (it is still emitting).
+            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                timeline.run_dispose();
+                return GLib.SOURCE_REMOVE;
+            });
             this.actor.opacity = fade === 'out' ? 0 : 255;
             const now = this._target?.();
             if (now && now.width > 0 && now.height > 0)
@@ -671,12 +687,41 @@ class Morph extends Glass {
     retarget(to) {
         this._to = to;
         this._setPath(this._timeline ? this._from : to, to);
-        if (!this._timeline)
-            this._draw(to);
+        if (this._timeline)
+            return;
+        // Measured as the last frame was laid out, so a frame behind what is growing (a Quick Settings submenu
+        // opening): what it follows (`follow`) is cut to the glass meanwhile, its edge moving with the glass's, and
+        // shown whole again once it has stopped changing.
+        if (this._follow && this._reveal !== this._follow) {
+            try {
+                this._startReveal(this._follow);
+            } catch {
+                this._endFollow();
+            }
+        }
+        this._draw(to);
+        if (this._reveal) {
+            if (this._settle)
+                GLib.source_remove(this._settle);
+            this._settle = GLib.timeout_add(GLib.PRIORITY_DEFAULT, FOLLOW_SETTLE_MS, () => {
+                this._settle = 0;
+                if (!this._timeline)
+                    this._endReveal();
+                return GLib.SOURCE_REMOVE;
+            });
+        }
+    }
+
+    _endFollow() {
+        if (this._settle)
+            GLib.source_remove(this._settle);
+        this._settle = 0;
+        this._follow = null;
     }
 
     hide() {
         this._stop();
+        this._endFollow();
         this._endReveal();
         this._target = null;
         this.actor.hide();
@@ -684,6 +729,7 @@ class Morph extends Glass {
 
     destroy() {
         this._stop();
+        this._endFollow();
         this._endReveal();
         super.destroy();
     }
@@ -817,10 +863,12 @@ export default class PanelIslandExtension extends Extension {
                     Math.max(rect.x + rect.width, c.x + c.width), rect);
             },
             hold: on => {
-                if (on)
+                if (on) {
+                    this._endClosing(this._peekGlass);
                     this._hold(left());
-                else if (!this._active && !this._island?.shown && this._heldCapsule === left())
+                } else if (this._leftFree(this._peekGlass)) {
                     this._hold(null);
+                }
             },
             busy: () => Boolean(this._active) || this._morph.shown || Boolean(this._island?.shown),
             opening: () => ({ms: this._ms(OPEN_MS),
@@ -852,10 +900,12 @@ export default class PanelIslandExtension extends Extension {
                     Math.max(rect.x + rect.width, c.x + c.width), rect);
             },
             hold: on => {
-                if (on)
+                if (on) {
+                    this._endClosing(this._islandGlass);
                     this._hold(left());
-                else if (!this._active && !this._workspaces?.shown && this._heldCapsule === left())
+                } else if (this._leftFree(this._islandGlass)) {
                     this._hold(null);
+                }
             },
             opening: () => ({ms: this._ms(OPEN_MS),
                 ease: this._settings.get_boolean('bounce') ? easeOutBack : easeOutCubic}),
@@ -1523,6 +1573,29 @@ export default class PanelIslandExtension extends Extension {
         Object.values(SCHEME_CLASS).forEach(cls => menu.actor.remove_style_class_name(cls));
     }
 
+    /** The glasses drawn over the left capsule, each with whether what it is for is still open (a menu of the bar, Island
+     * Menu's workspace peek, an island panel such as its launcher). */
+    _leftGlasses() {
+        return [[this._morph, Boolean(this._active)], [this._peekGlass, Boolean(this._workspaces?.shown)],
+            [this._islandGlass, Boolean(this._island?.shown)]].filter(([glass]) => glass);
+    }
+
+    /** Whether the left capsule may show its own glass again as `leaving` goes: held by it, and no other glass over
+     * it, open or still shrinking back. */
+    _leftFree(leaving) {
+        return this._heldCapsule === this._capsules?.[0] &&
+            this._leftGlasses().every(([glass, open]) => glass === leaving || (!open && !glass.shown));
+    }
+
+    /** `taking` takes a capsule: every other glass only shrinking back (what it was for already closed) put away at
+     * once, so two glasses are never drawn over one capsule, one growing as the other goes. */
+    _endClosing(taking) {
+        for (const [glass, open] of this._leftGlasses()) {
+            if (glass !== taking && !open && glass.shown)
+                glass.hide();
+        }
+    }
+
     /** Hands holding the capsule (its own glass not drawn) to `capsule`, or to none. */
     _hold(capsule) {
         if (this._heldCapsule === capsule)
@@ -1690,7 +1763,11 @@ export default class PanelIslandExtension extends Extension {
                 const from = this._morph.shown && this._morph.rect ? this._morph.rect : this._restRect(button);
                 const target = () => this._active === menu ? this._openRect(menu, button) : null;
                 const ease = this._settings.get_boolean('bounce') ? easeOutBack : easeOutCubic;
-                this._morph.animate(from, to, {ms: this._ms(OPEN_MS), ease, target, reveal: menu.actor});
+                // Any other glass still shrinking away (the workspace peek, an island panel) gone at once: two
+                // never show over one capsule.
+                this._endClosing(this._morph);
+                this._morph.animate(from, to, {ms: this._ms(OPEN_MS), ease, target, reveal: menu.actor,
+                    follow: menu.actor});
                 // The glass is drawn where the capsule is: the capsule's own can go.
                 this._hold(this._capsuleOf(button));
             } else {
@@ -1730,13 +1807,16 @@ export default class PanelIslandExtension extends Extension {
             // No menu of the bar open now: the next one opens as the user opens it.
             this._hoverMode = false;
             this._stopLeaveWatch();
-            // Back into the capsule, which shows again where the glass ends.
+            // Back into the capsule, which shows again where the glass ends; the menu, fading out as GNOME closes it,
+            // cut to the glass as it shrinks, never left showing past it.
             this._morph.animate(this._morph.rect, this._restRect(button), {ms: this._ms(CLOSE_MS), ease: easeInOutCubic,
-                target: () => this._restRect(button),
+                target: () => this._restRect(button), reveal: menu.actor,
                 onDone: () => {
                     if (this._active)
                         return;
-                    this._hold(null);
+                    // Not if another glass has the left capsule now (it gives it back as it goes).
+                    if (this._heldCapsule !== this._capsules?.[0] || this._leftFree(this._morph))
+                        this._hold(null);
                     this._morph.hide();
                 }});
             return GLib.SOURCE_REMOVE;
