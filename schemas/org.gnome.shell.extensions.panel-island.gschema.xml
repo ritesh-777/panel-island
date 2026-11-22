@@ -238,7 +238,7 @@
       </choices>
       <default>'left'</default>
       <summary>Island Menu opens from</summary>
-      <description>The capsule Island Menu's launcher grows out of: 'left' (its own capsule), or 'centre', the middle one, the launcher centred under (or, with the bar at the bottom, above) it. Only the launcher: the workspace peek stays with the left capsule. While the middle capsule is not shown (Settings → Middle capsule), the left one.</description>
+      <description>The capsule Island Menu's launcher grows out of: 'left' (its own capsule), or 'centre', the middle one, the launcher centred under (or, with the bar at the bottom, above) it. Only the launcher: the workspace peek stays with the left capsule. While the middle capsule is not shown (Settings → Middle capsule), the left one. Island Menu now sets this itself (its Launcher opens at): this is used only by an Island Menu that does not.</description>
     </key>
     <key name="bar-at-bottom" type="b">
       <default>false</default>

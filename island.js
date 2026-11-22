@@ -9,6 +9,9 @@
 //   global.panel_island?.leftRect()   the left capsule's shape {x, y, width, height}, or null (none shown)
 //   global.panel_island?.panelRect?.() the shape of the capsule a panel opens from (Settings: the left or the middle
 //                                     one), with `centre` true for the middle one (then centre the panel under it)
+//   global.panel_island?.setFrom?.(side) the capsule the next panel opens from, as the other extension's own setting
+//                                     says: 'left' or 'centre' (the middle one, while it is shown; else the left);
+//                                     null: as Panel Island's own setting (Island Menu opens from)
 //   global.panel_island?.open(actor, {light})  the glass grown round `actor`, light or dark as asked (else as the
 //                                     capsules are); false if it cannot be (then draw your own)
 //   global.panel_island?.isLight()    whether the capsules are light now
@@ -50,6 +53,7 @@ export class IslandService {
                 return rect ? {x: rect.x, y: rect.y, width: rect.width, height: rect.height,
                     centre: Boolean(capsule && capsule.box === Main.panel._centerBox)} : null;
             },
+            setFrom: side => this._host.setFrom?.(side),
             open: (actor, options = {}) => this.open(actor, options),
             isLight: () => Boolean(this._host.isLight?.()),
             close: () => this.close(),

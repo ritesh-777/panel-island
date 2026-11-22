@@ -342,10 +342,6 @@ export default class PanelIslandPreferences extends ExtensionPreferences {
         opening.add(openOn);
         opening.add(hoverDelay);
         opening.add(closeDelay);
-        opening.add(choiceRow(settings, 'island-panel-from', 'Island Menu opens from', [
-            ['left', 'Left capsule', 'Island Menu\'s launcher grows out of the left capsule'],
-            ['centre', 'Middle capsule', 'The launcher grows out of the middle capsule, centred; the left one while the middle one is not shown'],
-        ]));
         page.add(opening);
         syncOpenOn();
 

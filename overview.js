@@ -185,10 +185,20 @@ function placeCopy(copy, source) {
             copy.set_position(source.x, source.y);
         return;
     }
-    if (copy.x !== box.x || copy.y !== box.y)
-        copy.set_position(box.x, box.y);
-    if (copy.width !== box.width || copy.height !== box.height)
-        copy.set_size(box.width, box.height);
+    setBox(copy, box);
+}
+
+/** `actor` given `box` as its own place and size, compared with what it was given last, not with its width and height:
+ * before it is laid out those read as what it asks for (a copy of a switch's group: as wide as the workspaces right of
+ * where the slide starts). From the last workspace that is the monitor's width, so it was taken as sized already, never
+ * given one, and followed the group's width as the slide went (its blur stretched, off the picture). */
+function setBox(actor, box) {
+    const had = actor._panelIslandBox;
+    if (had && ['x', 'y', 'width', 'height'].every(k => had[k] === box[k]))
+        return;
+    actor._panelIslandBox = {x: box.x, y: box.y, width: box.width, height: box.height};
+    actor.set_position(box.x, box.y);
+    actor.set_size(box.width, box.height);
 }
 
 /** The scenes GNOME draws now, for `backdrop` (Isle's not given a switch's on battery). */
@@ -459,11 +469,8 @@ function syncSharedGroup(key, group) {
         }
         backdrop._frame.visible = false;
         const rect = backdrop._rect;
-        const at = [strip.x - Math.round(rect.stageX), strip.y - Math.round(rect.stageY)];
-        if (clone.x !== at[0] || clone.y !== at[1])
-            clone.set_position(...at);
-        if (clone.width !== strip.width || clone.height !== strip.height)
-            clone.set_size(strip.width, strip.height);
+        setBox(clone, {x: strip.x - Math.round(rect.stageX), y: strip.y - Math.round(rect.stageY),
+            width: strip.width, height: strip.height});
     }
 }
 let notedShared = false;

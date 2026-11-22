@@ -146,10 +146,10 @@ The bar's colour while Isle is off. With Isle on, Isle colours the bar itself.
 ### Opening Menus
 
 - **Open menus** — On hover, on click, or Like Isle.
-- **Island Menu opens from** — The left capsule (default) or the middle one. With the middle one, Island Menu's
-  launcher is centred under it (above it with the bar at the bottom), its glass growing out of that capsule. Only the
-  launcher moves: the workspace peek stays with the left capsule. While the middle capsule is not shown (Middle
-  capsule set to Automatic with Isle on and the bar at the top), the left one is used.
+- Which capsule Island Menu's launcher grows out of, the left or the middle one, is set in Island Menu (Launcher opens
+  at). With the middle one, the launcher is centred under it (above it with the bar at the bottom); the workspace
+  peek stays with the left capsule. While the middle capsule is not shown (Middle capsule set to Automatic with Isle on
+  and the bar at the top), the left one is used.
 - **Hover delay** — How long the pointer rests before a menu opens.
 - **Close delay** — How long after the pointer leaves a menu opened on hover it closes.
 

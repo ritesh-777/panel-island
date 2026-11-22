@@ -903,6 +903,10 @@ export default class PanelIslandExtension extends Extension {
         this._island = new IslandService({
             glass: this._islandGlass,
             capsule: () => this._islandCapsule(),
+            // The capsule as the panel's own extension asks (Island Menu → Launcher opens at), over our setting.
+            setFrom: side => {
+                this._islandWanted = side === 'left' || side === 'centre' ? side : null;
+            },
             leftRect: () => left()?.enabled && left().rect ? left().rect : null,
             restRect: () => {
                 const c = this._islandCapsule();
@@ -948,6 +952,8 @@ export default class PanelIslandExtension extends Extension {
         this._islandSide = 0;
         /** The capsule an island panel opened from, kept until it has closed (`_islandCapsule`). */
         this._islandFrom = null;
+        /** The capsule the panel's own extension asks for ('left', 'centre'), or null: our setting (`setFrom`). */
+        this._islandWanted = null;
         this._watched = new Set();
         this._menus = new Map();
         this._cleared = new Set();
@@ -1160,8 +1166,8 @@ export default class PanelIslandExtension extends Extension {
         if (this._islandFrom && (this._island?.shown || this._islandGlass?.shown))
             return this._islandFrom;
         const centre = this._capsules?.[2];
-        const wanted = this._settings?.get_string('island-panel-from') === 'centre' && centre?.enabled && centre.rect
-            ? centre : left;
+        const side = this._islandWanted ?? this._settings?.get_string('island-panel-from');
+        const wanted = side === 'centre' && centre?.enabled && centre.rect ? centre : left;
         this._islandFrom = wanted;
         return wanted;
     }
