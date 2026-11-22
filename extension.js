@@ -793,7 +793,11 @@ class Morph extends Glass {
     /** The menu changed size while open (a submenu): follows it, at once or along the move under way. */
     retarget(to) {
         this._to = to;
-        this._setPath(this._timeline ? this._from : to, to);
+        // Blurred again only if it now goes past what was blurred (as `animate` does): a panel easing to a new size
+        // (Island Menu's results narrowing or widening) moves the glass every frame, and a new area each frame would
+        // blur it again each frame.
+        if (!this._pathArea || !holds(this._pathArea, to))
+            this._setPath(this._timeline ? this._from : to, to);
         if (this._timeline)
             return;
         // Measured as the last frame was laid out, so a frame behind what is growing (a Quick Settings submenu
