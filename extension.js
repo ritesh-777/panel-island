@@ -34,8 +34,6 @@ import {SCHEME_CLASS, loadMenuSchemes} from './menuScheme.js';
 import {LIGHT_EDGE, lightBlur, lightFill} from './light.js';
 import {ALONG_EDGE, BL, BR, DOWN_SIDE, TL, TR, bounds, fitted, flipped, lerpShape, outline, sideMask} from './shape.js';
 import {atBottom, setBarAtBottom} from './barPosition.js';
-import {CapsuleClock} from './clock.js';
-import {CapsuleWeather} from './capsuleWeather.js';
 
 const ISLE_UUID = 'isle@zickrian.github.io';
 const ISLE_SCHEMA = 'org.gnome.shell.extensions.isle';
@@ -155,91 +153,6 @@ function fadingCorners(ox, oy, w, h, corners, flush) {
     return zones;
 }
 
-/** A small number in 0..1 for `i`, the same each time: where a drop sits does not jump as the glass is drawn again. */
-const seeded = i => {
-    const x = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
-    return x - Math.floor(x);
-};
-
-/** The weather on a capsule's glass, over the body `w` × `h` at `ox`, `oy` (the caller clips to its shape): drops of
- * rain, frost creeping in from the rim, a warm glare from the left, mist; a few stars on a clear night. Still, never
- * moving: drawn as the shape or the sky changes. */
-function paintSky(cr, sky, ox, oy, w, h, s) {
-    if (sky === 'rain' || sky === 'storm') {
-        if (sky === 'storm') {
-            cr.setSourceRGBA(0.45, 0.5, 0.85, 0.12);
-            cr.rectangle(ox, oy, w, h);
-            cr.fill();
-        }
-        const count = Math.max(4, Math.round(w / (14 * s)));
-        for (let i = 0; i < count; i++) {
-            const x = ox + w * (0.04 + 0.92 * seeded(i + 1));
-            const y = oy + h * (0.12 + 0.7 * seeded(i + 31));
-            const r = (1 + 0.8 * seeded(i + 61)) * s;
-            const len = r * (1.6 + seeded(i + 91));
-            // A drop: a little elongated, lit on its upper left.
-            cr.setSourceRGBA(0.82, 0.9, 1, 0.42);
-            cr.save();
-            cr.translate(x, y);
-            cr.scale(1, len / r);
-            cr.arc(0, 0, r, 0, 2 * Math.PI);
-            cr.restore();
-            cr.fill();
-            cr.setSourceRGBA(1, 1, 1, 0.55);
-            cr.arc(x - r * 0.35, y - len * 0.35, r * 0.35, 0, 2 * Math.PI);
-            cr.fill();
-        }
-    } else if (sky === 'snow' || sky === 'frost') {
-        // Frost: white creeping in from the top and bottom edges, and a few crystals.
-        for (const [from, to] of [[oy, oy + h * 0.45], [oy + h, oy + h * 0.55]]) {
-            const gradient = new Cairo.LinearGradient(0, from, 0, to);
-            gradient.addColorStopRGBA(0, 0.88, 0.94, 1, 0.32);
-            gradient.addColorStopRGBA(1, 0.88, 0.94, 1, 0);
-            cr.setSource(gradient);
-            cr.rectangle(ox, Math.min(from, to), w, Math.abs(to - from));
-            cr.fill();
-        }
-        const count = Math.max(3, Math.round(w / (22 * s)));
-        cr.setSourceRGBA(1, 1, 1, sky === 'snow' ? 0.75 : 0.5);
-        for (let i = 0; i < count; i++) {
-            const x = ox + w * (0.05 + 0.9 * seeded(i + 7));
-            const y = oy + h * (seeded(i + 17) < 0.5 ? 0.18 : 0.82) + (seeded(i + 27) - 0.5) * h * 0.12;
-            cr.arc(x, y, (0.7 + 0.6 * seeded(i + 37)) * s, 0, 2 * Math.PI);
-            cr.fill();
-        }
-    } else if (sky === 'sun') {
-        // A warm glare from the left, as low sun through glass.
-        const gradient = new Cairo.RadialGradient(ox, oy + h * 0.3, 0, ox, oy + h * 0.3, Math.max(w * 0.6, h));
-        gradient.addColorStopRGBA(0, 1, 0.82, 0.48, 0.3);
-        gradient.addColorStopRGBA(1, 1, 0.82, 0.48, 0);
-        cr.setSource(gradient);
-        cr.rectangle(ox, oy, w, h);
-        cr.fill();
-    } else if (sky === 'fog') {
-        // Mist: the glass a little whiter, in soft bands.
-        cr.setSourceRGBA(1, 1, 1, 0.1);
-        cr.rectangle(ox, oy, w, h);
-        cr.fill();
-        for (let i = 0; i < 2; i++) {
-            const y = oy + h * (0.3 + 0.4 * i);
-            const gradient = new Cairo.LinearGradient(0, y - h * 0.2, 0, y + h * 0.2);
-            gradient.addColorStopRGBA(0, 1, 1, 1, 0);
-            gradient.addColorStopRGBA(0.5, 1, 1, 1, 0.12);
-            gradient.addColorStopRGBA(1, 1, 1, 1, 0);
-            cr.setSource(gradient);
-            cr.rectangle(ox, y - h * 0.2, w, h * 0.4);
-            cr.fill();
-        }
-    } else if (sky === 'night') {
-        const count = Math.max(2, Math.round(w / (40 * s)));
-        cr.setSourceRGBA(1, 1, 1, 0.45);
-        for (let i = 0; i < count; i++) {
-            cr.arc(ox + w * (0.08 + 0.84 * seeded(i + 3)), oy + h * (0.2 + 0.6 * seeded(i + 13)), 0.7 * s, 0, 2 * Math.PI);
-            cr.fill();
-        }
-    }
-}
-
 /** Isle's glass (or black) and its fill over it, in any side shape (see shape.js); `place(shape, area)` draws it. */
 class Glass {
     /** `Mask`: the per-corner cut (shape.js `sideMask`) put in place of Isle's own, or null to keep Isle's. */
@@ -272,14 +185,6 @@ class Glass {
         this._shape = null;
         this._shapeKey = null;
         this._area = null;
-    }
-
-    /** The weather drawn on the glass ('rain', 'storm', 'snow', 'frost', 'fog', 'sun', 'night', 'cloud'), or none. */
-    set sky(sky) {
-        if ((sky ?? null) === (this._sky ?? null))
-            return;
-        this._sky = sky ?? null;
-        this.fill.queue_repaint();
     }
 
     setLook(look) {
@@ -315,14 +220,6 @@ class Glass {
             cr.setSourceRGBA(fill[0], fill[1], fill[2], fill[3]);
             outline(cr, ox, oy, w, h, corners, flares, cuts);
             cr.fill();
-            // The weather on the glass (Settings → Weather), cut to the shape.
-            if (this._sky) {
-                cr.save();
-                outline(cr, ox, oy, w, h, corners, flares, cuts);
-                cr.clip();
-                paintSky(cr, this._sky, ox, oy, w, h, scale());
-                cr.restore();
-            }
             // A floating shape stands apart from what is behind it: a hairline round it on black too, as Isle's pill
             // (one hanging from the top of the screen, or standing on its bottom, has none, as Isle's notch).
             const edge = themeEdge ?? (flush[0] || flush[2] ? null : PILL_EDGE);
@@ -1097,7 +994,6 @@ export default class PanelIslandExtension extends Extension {
             'changed::centre-capsule', () => this._applySides(),
             'changed::top-bar', () => this._applyBar(),
             'changed::keep-activities', () => this._applyActivities(),
-            'changed::hide-gnome-clock', () => this._applyGnomeClock(),
             'changed::bar-at-bottom', () => this._applyBarPosition(),
             'changed::top-bar-opacity', () => this._applyBar(),
             'changed::flat-buttons', () => this._applyFlat(),
@@ -1147,29 +1043,7 @@ export default class PanelIslandExtension extends Extension {
         keepBar(true);
         this._applyBar();
         this._applyActivities();
-        this._applyGnomeClock();
         this._applyBarPosition();
-        // Settings → Clock (clock.js): GNOME's clock drawn anew in a capsule.
-        try {
-            this._clock = new CapsuleClock(this._settings, () => this._queue());
-        } catch (e) {
-            console.warn(`[panel-island] The capsule clock could not start, GNOME's clock left as it is: ${e}`);
-            this._clock = null;
-        }
-        // Settings → Weather (capsuleWeather.js): the weather in a capsule, its sky on that capsule's glass.
-        try {
-            this._weather = new CapsuleWeather(this._settings, {
-                onSky: (place, sky) => {
-                    const capsule = this._capsules?.[place === 'centre' ? 2 : 0];
-                    if (capsule)
-                        capsule.sky = sky;
-                },
-                onMoved: () => this._queue(),
-            });
-        } catch (e) {
-            console.warn(`[panel-island] The capsule weather could not start: ${e}`);
-            this._weather = null;
-        }
         // Island Menu's workspace features told the capsule's glass is there (workspaceGlass.js).
         this._workspaces.announce();
         // Logging in, the shell is still setting itself up as extensions start: the bar coloured again once it is done.
@@ -1192,59 +1066,6 @@ export default class PanelIslandExtension extends Extension {
         // Drawn anew once the bar is laid out where it now is (its allocation queues that, see `_load`), not now from
         // where it was.
         this._capsules.forEach(capsule => (capsule._key = null));
-    }
-
-    /** Settings → Hide GNOME's clock: its button hidden (and so not drawn through Isle's glass either); shown again
-     * only if hidden here. Something showing it again while this is on is hidden again, up to a few times a second
-     * (past that, another extension wants it shown: it is left to it, as the bar's style is in topBar.js). */
-    _applyGnomeClock() {
-        if (this._dead)
-            return;
-        const container = Main.panel.statusArea.dateMenu?.container;
-        if (!container)
-            return;
-        const hide = this._settings.get_boolean('hide-gnome-clock');
-        if (!hide) {
-            container.disconnectObject(this._gnomeClockToken ??= {});
-            if (this._hidGnomeClock)
-                container.show();
-            this._hidGnomeClock = false;
-            return;
-        }
-        const token = this._gnomeClockToken ??= {};
-        container.disconnectObject(token);
-        let shown = [];
-        container.connectObject('notify::visible', () => {
-            if (!container.visible)
-                return;
-            const now = GLib.get_monotonic_time();
-            shown = shown.filter(at => now - at < 1e6);
-            shown.push(now);
-            if (shown.length > 5) {
-                console.warn("[panel-island] Something keeps showing GNOME's clock: it is left shown");
-                container.disconnectObject(token);
-                return;
-            }
-            container.hide();
-            this._hidGnomeClock = true;
-        }, token);
-        if (container.visible) {
-            container.hide();
-            this._hidGnomeClock = true;
-        }
-    }
-
-    /** GNOME's clock back as it was, if hidden here. */
-    _releaseGnomeClock() {
-        const container = Main.panel.statusArea.dateMenu?.container;
-        if (!container)
-            return;
-        try {
-            container.disconnectObject(this._gnomeClockToken ??= {});
-            if (this._hidGnomeClock)
-                container.show();
-        } catch {}
-        this._hidGnomeClock = false;
     }
 
     /** Settings → Keep GNOME's Activities button (activities.js). */
@@ -2317,17 +2138,8 @@ export default class PanelIslandExtension extends Extension {
         this._unwatchSwitch = null;
         this._steadyActivities(false);
         releaseOverview();
-        // GNOME's clock as it was, and the bar back at the top, whatever else.
-        for (const feature of [this._clock, this._weather]) {
-            try {
-                feature?.destroy();
-            } catch (e) {
-                console.warn(`[panel-island] The capsule clock or weather was not taken down cleanly: ${e}`);
-            }
-        }
-        this._clock = this._weather = null;
+        // The bar back at the top, whatever else.
         setBarAtBottom(false);
-        this._releaseGnomeClock();
         if (this._dead) {
             // Already gone with the shell's bar: only what is ours to drop.
             Main.extensionManager.disconnectObject(this);

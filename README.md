@@ -125,8 +125,6 @@ The bar's colour while Isle is off. With Isle on, Isle colours the bar itself.
 - **Colour** — Like Isle (Isle's own Top bar settings), Coloured (see-through to black, with white text), or the
   theme's own.
 - **Opacity** — 0 is see-through, 100 is black.
-- **Hide GNOME's clock** — off by default: GNOME's own clock in the bar hidden, whatever else is on (Isle's island
-  keeps its own clock).
 - **Bar at the bottom** — off by default. Moves GNOME's top bar to the bottom of the main display. The capsules sit
   on the screen's bottom edge, and menus (and Island Menu's launcher and workspace peek) open upwards in glass
   growing out of them. Windows keep clear of the bar there, as GNOME does at the top. The "top corner" settings under
@@ -144,42 +142,6 @@ The bar's colour while Isle is off. With Isle on, Isle colours the bar itself.
   - **Match window corners** — Sized from your windows' corners: round as they are, or flared to follow a window
     below the bar at an even gap.
   - **Window radius from Rounded Window Corners**, or a **Window corner radius** set by hand.
-
-### Clock
-
-A page of its own. A clock of Panel Island's own in a capsule, shown whatever hides GNOME's clock (Top Bar
-Organizer's hide list, Isle's island). It is a clock to read: clicking it opens nothing.
-
-- **Clock in a capsule** — off by default.
-- **Hide GNOME's clock** — on by default, so the time shows once; off leaves GNOME's clock to whatever else says.
-- **Capsule** — the left one (at its end) or the middle one (first in the middle of the bar; with the bar at the top,
-  Isle's island sits there).
-- **Style** — **Flip digits** (small tiles, a changed digit flipping over) or **Sun arc** (a sun or moon on an arc
-  across the day, the time beside it).
-- **AM and PM** (12-hour clocks) — with flip digits, stacked (the current one lit) or a tile of its own; with the sun
-  arc, a small label, or none (morning on the arc's left, evening on its right).
-- **Date** — the day and date after the time.
-- **Scroll to switch** — the date and week, then your first world clock, for a few seconds.
-- **Sun colours** — golden before sunset, blue at dusk and dawn, a moon at night, from your weather place's sunrise
-  and sunset (6 and 18 o'clock without one).
-- **Next event** — before an event with a time in your calendar, its name and how soon ("Standup · 12 min") beside the
-  clock, from 15 minutes before (your choice, 1 to 120) until a minute after it starts.
-- **Notifications** — while notifications wait, a dot (or how many) right of the time, as GNOME's own dot counts
-  them; none with Do Not Disturb.
-- **Do Not Disturb moon** and **Right click copies** the date and time.
-
-It changes once a minute and keeps its width between changes, so its capsule never moves with the time.
-
-### Weather
-
-A page of its own. GNOME's own weather (for the place set in GNOME Weather) in the left or the middle capsule.
-
-- **Weather in a capsule** — off by default: its icon and temperature; hidden while there is no weather to show.
-- **Capsule** — the end of the left capsule, or of the middle one (after the clock if it is there).
-- **Weather on the glass** — the capsule's glass takes on the sky: drops of rain, frost when it is cold, a warm glare
-  in sun, mist in fog, a few stars on a clear night. Still, never moving, redrawn only as the sky changes.
-- **Conditions in words** and **Rain coming** ("Rain ~4 PM", up to three hours ahead, from the hourly forecast).
-- Clicking it opens nothing. The weather is asked for every half hour.
 
 ### Opening Menus
 
