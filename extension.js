@@ -1093,6 +1093,7 @@ export default class PanelIslandExtension extends Extension {
             'changed::centre-capsule', () => this._applySides(),
             'changed::top-bar', () => this._applyBar(),
             'changed::keep-activities', () => this._applyActivities(),
+            'changed::hide-gnome-clock', () => this._applyGnomeClock(),
             'changed::bar-at-bottom', () => this._applyBarPosition(),
             'changed::top-bar-opacity', () => this._applyBar(),
             'changed::flat-buttons', () => this._applyFlat(),
@@ -1142,6 +1143,7 @@ export default class PanelIslandExtension extends Extension {
         keepBar(true);
         this._applyBar();
         this._applyActivities();
+        this._applyGnomeClock();
         this._applyBarPosition();
         // Settings → Clock (clock.js): GNOME's clock drawn anew in a capsule.
         try {
@@ -1186,6 +1188,59 @@ export default class PanelIslandExtension extends Extension {
         // Drawn anew once the bar is laid out where it now is (its allocation queues that, see `_load`), not now from
         // where it was.
         this._capsules.forEach(capsule => (capsule._key = null));
+    }
+
+    /** Settings → Hide GNOME's clock: its button hidden (and so not drawn through Isle's glass either); shown again
+     * only if hidden here. Something showing it again while this is on is hidden again, up to a few times a second
+     * (past that, another extension wants it shown: it is left to it, as the bar's style is in topBar.js). */
+    _applyGnomeClock() {
+        if (this._dead)
+            return;
+        const container = Main.panel.statusArea.dateMenu?.container;
+        if (!container)
+            return;
+        const hide = this._settings.get_boolean('hide-gnome-clock');
+        if (!hide) {
+            container.disconnectObject(this._gnomeClockToken ??= {});
+            if (this._hidGnomeClock)
+                container.show();
+            this._hidGnomeClock = false;
+            return;
+        }
+        const token = this._gnomeClockToken ??= {};
+        container.disconnectObject(token);
+        let shown = [];
+        container.connectObject('notify::visible', () => {
+            if (!container.visible)
+                return;
+            const now = GLib.get_monotonic_time();
+            shown = shown.filter(at => now - at < 1e6);
+            shown.push(now);
+            if (shown.length > 5) {
+                console.warn("[panel-island] Something keeps showing GNOME's clock: it is left shown");
+                container.disconnectObject(token);
+                return;
+            }
+            container.hide();
+            this._hidGnomeClock = true;
+        }, token);
+        if (container.visible) {
+            container.hide();
+            this._hidGnomeClock = true;
+        }
+    }
+
+    /** GNOME's clock back as it was, if hidden here. */
+    _releaseGnomeClock() {
+        const container = Main.panel.statusArea.dateMenu?.container;
+        if (!container)
+            return;
+        try {
+            container.disconnectObject(this._gnomeClockToken ??= {});
+            if (this._hidGnomeClock)
+                container.show();
+        } catch {}
+        this._hidGnomeClock = false;
     }
 
     /** Settings → Keep GNOME's Activities button (activities.js). */
@@ -2268,6 +2323,7 @@ export default class PanelIslandExtension extends Extension {
         }
         this._clock = this._weather = null;
         setBarAtBottom(false);
+        this._releaseGnomeClock();
         if (this._dead) {
             // Already gone with the shell's bar: only what is ours to drop.
             Main.extensionManager.disconnectObject(this);

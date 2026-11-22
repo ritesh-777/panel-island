@@ -125,6 +125,8 @@ The bar's colour while Isle is off. With Isle on, Isle colours the bar itself.
 - **Colour** — Like Isle (Isle's own Top bar settings), Coloured (see-through to black, with white text), or the
   theme's own.
 - **Opacity** — 0 is see-through, 100 is black.
+- **Hide GNOME's clock** — off by default: GNOME's own clock in the bar hidden, whatever else is on (Isle's island
+  keeps its own clock).
 - **Bar at the bottom** — off by default. Moves GNOME's top bar to the bottom of the main display. The capsules sit
   on the screen's bottom edge, and menus (and Island Menu's launcher and workspace peek) open upwards in glass
   growing out of them. Windows keep clear of the bar there, as GNOME does at the top. The "top corner" settings under

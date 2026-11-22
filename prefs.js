@@ -272,6 +272,9 @@ export default class PanelIslandPreferences extends ExtensionPreferences {
         settings.connect('changed::top-bar', syncBar);
         syncBar();
         bar.add(barOpacity);
+        bar.add(switchRow(settings, 'hide-gnome-clock', 'Hide GNOME\'s clock',
+            ISLE_INSTALLED ? 'GNOME\'s own clock in the bar hidden; Isle\'s island keeps its own'
+                : 'GNOME\'s own clock in the bar hidden'));
         bar.add(switchRow(settings, 'bar-at-bottom', 'Bar at the bottom',
             ISLE_INSTALLED
                 ? 'The bar, its capsules and menus at the bottom of the main display. Isle\'s island stays at the top, as on a display with no bar'

@@ -357,6 +357,11 @@
       <summary>Rain coming</summary>
       <description>Before rain, when it is due ("Rain ~4 PM"), from the hourly forecast, up to three hours ahead.</description>
     </key>
+    <key name="hide-gnome-clock" type="b">
+      <default>false</default>
+      <summary>Hide GNOME's clock</summary>
+      <description>GNOME's own clock in the top bar hidden, whatever else is on (Isle's island keeps its own clock). Off: shown again if it was hidden here.</description>
+    </key>
     <key name="bar-at-bottom" type="b">
       <default>false</default>
       <summary>Bar at the bottom</summary>
